@@ -134,11 +134,12 @@ return false;
 		//get account details	
 		$query="call GetAccountDetails($cust);";  	
 		//run query
-		$srchresult=mysql_query($query);
-		$num=mysql_num_rows($srchresult);
-		if ($num > 0){
-			$DefToSellFlag = mysql_result($srchresult,0,"DefToSellFlag");
-		             }
+        $srchresult = $conn->query($query);
+
+        if ($srchresult && $srchresult->num_rows > 0) {
+            $row = $srchresult->fetch_assoc();
+            $DefToSellFlag = $row['DefToSellFlag'] ?? null;
+        }
 		if ($DefToSellFlag == 'Y') {
 			$spdisp = 'S';	
 		   } else {
@@ -208,7 +209,7 @@ break;
 ?>
 
 <div id="content">
-<!-- blank_sidebar_SB  -->
+<!-- blank_sidebar_SB -->
 <div id="sidebar">
 
 <?php
@@ -229,13 +230,21 @@ break;
 	include 'Reconnect.php';
 	$query="SELECT * FROM customers WHERE Customer_id = '".$cust."'";  	
 	//run query
-	$customer_stop=mysql_query($query) or die(mysql_error());
-	$num=mysql_numrows($customer_stop);
-	if ($num > 0){
-		if(mysql_result($customer_stop,0,"On_Stop_Flag") == 'Y') {
-			echo '<br /><br /><p class="stop">** ON STOP **</p>';
-				}
-		     }
+    $customer_stop = $conn->query($query);
+
+    if (!$customer_stop) {
+        die("Query failed: " . $conn->error);
+    }
+
+    $num = $customer_stop->num_rows;
+
+    if ($num > 0) {
+        $row = $customer_stop->fetch_assoc();
+        if ($row['On_Stop_Flag'] === 'Y') {
+            echo '<br /><br /><p class="stop">** ON STOP **</p>';
+        }
+    }
+
 ?>
 <ul>
 

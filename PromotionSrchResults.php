@@ -7,47 +7,48 @@ echo "<script type='text/javascript' src='scripts/css.js'></script>";
 echo "<script type='text/javascript' src='scripts/standardista_table_sorting.js'></script>";
 
 $companyid = $_SESSION['companyid'];
+
 // company 5 - BA Bush
 switch ($companyid)
                {
-               case ($companyid=='5'):
+               case 5:
                 $Special='http://www.bushtyresintranet.co.uk/bush.jpg';
                 //$Special='images/bush.jpg';
 		$SpecialText = shell_exec("/usr/local/bin/getMOTD.ksh $companyid");
                 break;
 
-		case ($companyid=='11'):
+		case 11:
                 $Special='http://www.bushtyresintranet.co.uk/endyke.jpg?dummy=48484848';
 		$SpecialText = shell_exec("/usr/local/bin/getMOTD.ksh $companyid");
                 break;
 				
 		//STW
-		case ($companyid=='4'):
+		case 4:
                 $Special='graphics/stw-prom-hdr.jpg';
 		$SpecialText = shell_exec("/usr/local/bin/getMOTD.ksh $companyid");
-                break;
-
                 break;
                 }
 
 $vat = 20.0;
 
-	//get price modifiers
-	$query="call GetAccountDetails($cust);";
-	//run query
-	$srchresult=mysql_query($query);
-	$num=mysql_numrows($srchresult);
-	if ($num > 0){
-		$vatflag = mysql_result($srchresult,0,"IncVatFlag");
-		$markupval = mysql_result($srchresult,0,"markupval");
-		$markuppct = mysql_result($srchresult,0,"markuppc");
-		$DefToSellFlag = mysql_result($srchresult,0,"DefToSellFlag");
-       	$Show_rrp = mysql_result($srchresult,0,"Show_rrp");
-       	$Show_rrp4 = mysql_result($srchresult,0,"Show_rrp4");
-       	$Hide_rrp = mysql_result($srchresult,0,"hide_rrp");
-       	$Account_No = mysql_result($srchresult,0,"Account_No");
-   	$show_cust_spec = mysql_result($srchresult,0,"show_cust_specials");
-	    }
+
+// Get price modifiers
+$query = "CALL GetAccountDetails($cust);";
+$srchresult = $conn->query($query);
+
+if ($srchresult && $srchresult->num_rows > 0) {
+    $row = $srchresult->fetch_assoc();
+
+    $vatflag         = $row['IncVatFlag'] ?? null;
+    $markupval       = $row['markupval'] ?? null;
+    $markuppct       = $row['markuppc'] ?? null;
+    $DefToSellFlag   = $row['DefToSellFlag'] ?? null;
+    $Show_rrp        = $row['Show_rrp'] ?? null;
+    $Show_rrp4       = $row['Show_rrp4'] ?? null;
+    $Hide_rrp        = $row['hide_rrp'] ?? null;
+    $Account_No      = $row['Account_No'] ?? null;
+    $show_cust_spec  = $row['show_cust_specials'] ?? null;
+}
 //var_dump($Account_No);echo "<br/>\n";
 	//reconnect
 	include 'Reconnect.php';
@@ -58,10 +59,16 @@ $branch = $_SESSION['default_branch'];
 if ($scode == '')  
 	{
 		//call search proc
-		$query="call StockSearchPromotion('$scode',$cust,'$sdesc','$spgroup','$sman','$sptype','$sspecflag','$szstockflag','$size','$sortprodlist','$branch','$Account_No','$winterfilter','$xlfilter','$rffilter');";	
-	
-	$srchresult=mysql_query($query) or die(mysql_error());
-	$num=mysql_num_rows($srchresult);
+		$query="call StockSearchPromotion('$scode',$cust,'$sdesc','$spgroup','$sman','$sptype','$sspecflag','$szstockflag','$size','$sortprodlist','$branch','$Account_No','$winterfilter','$xlfilter','$rffilter');";
+
+        $srchresult = $conn->query($query);
+
+        if (!$srchresult) {
+            die("Query failed: " . $conn->error);
+        }
+
+        $num = $srchresult->num_rows;
+
 			
 	
 	//loop round results
@@ -90,169 +97,101 @@ if ($scode == '')
 		echo "<th class=titlemedium>Wet</th>";
 		echo "<th class=titlemedium>Noise</th>";
 		echo "<th class=titlemedium>TL</th>";
-		
 
-		if (mysql_result($srchresult,0,"show_stock_flag")=="Y")
-		   {
-			echo "<th class=titlemedium>Co. Stk</th>";
-		   }
+        $srchresult->data_seek(0); // Move pointer to the first row
+        $row = $srchresult->fetch_assoc();
+
+        if (($row['show_stock_flag'] ?? '') === "Y") {
+            echo "<th class='titlemedium'>Co. Stk</th>";
+        }
+
 
 		echo "<th class=titlemedium>Cost</th>";
 		echo "<th class=titlemedium>Basket</th></tr></thead>";
 
 		echo "<tbody>";	/* table body starting (required by the js that 
 				   does the table sort headings) */
+            $rows = $srchresult->fetch_all(MYSQLI_ASSOC); // get all rows as associative arrays
+            foreach ($rows as $i => $row) {
+                $tr_row_class = ($i % 2 === 0) ? '' : " class='odd'";
+                $td_col_class = "class='promoeulabel'";
+                $td_price_col_class = "class='promoprice'";
+                $productid = $row['product_id'];
 
-		while ($i < $num)
-			{
+                echo "\n<tr $tr_row_class >";
+                echo "<td class='promotext'><img src='images/promotion-icon.gif' />&nbsp;&nbsp;" . substr($row['description'], 0, 80) . "</td>";
+                echo "<td class='promotext'>{$row['manufacturer']}</td>";
 
-			//write one row of table
-			if ($i/2 == round($i/2))
-			   {
-				$tr_row_class = '';
-			   } else {
-				$tr_row_class = " class='odd'";
-			   }
+                echo "<td $td_col_class >{$row['fuel_efficiency']}</td>";
+                echo "<td $td_col_class >{$row['wet_braking']}</td>";
 
-            $td_col_class = "class='promoeulabel'";
-			$td_price_col_class = "class='promoprice'";
-			// highlight cost price for special items or show as normal if not
-		  	//if (mysql_result($srchresult,$i,"highlight") == 'Y')
-	  		 //  {
-			//	$tr_row_class = " class='highlight'";
-			//	$td_col_class = "class='highlight-eulabel'";
-			//	$td_price_col_class = "class='highlight-price'";
-			//   }
+                $noise = trim($row['decibels'], "\0 ");
+                echo "<td $td_col_class >" . $noise . ($noise ? "db" : "") . "</td>";
 
-                        $productid = mysql_result($srchresult,$i,"product_id");
+                if (in_array($companyid, ['2', '3', '4', '5', '11', '16'])) {
+                    echo "<td $td_col_class >";
+                    $url = trim($row['url']);
+                    if ($url) {
+                        echo "<a href='$url' target='_blank'><img src='images/TyreLabelIcon.jpg' width='16' height='16' onmouseover=\"Tip('Tyre Label')\"></a>";
+                    } elseif (
+                        $row['fuel_efficiency'] !== '' &&
+                        $row['wet_braking'] !== '' &&
+                        $row['vehicle_class'] !== ''
+                    ) {
+                        $label_url = "http://www.tyreman.co.uk/eulabel.php?id={$row['fuel_efficiency']}&id2={$row['wet_braking']}&id3={$row['noise_rating']}&id4={$row['decibels']}&id5={$row['vehicle_class']}&id6={$row['stockcode']}";
+                        echo "<a href='$label_url' target='_blank'><img src='images/TyreLabelIcon.jpg' width='16' height='16' onmouseover=\"Tip('Tyre Label')\"></a>";
+                    }
+                    echo "</td>";
+                }
 
-                        //echo "\n<tr $tr_row_class  onmouseover=\"this.style.backgroundColor='red'\"; onmouseout=\"this.style.backgroundColor=''\";>";
-                        echo "\n<tr $tr_row_class >";
+                if ($row['show_stock_flag'] === 'Y') {
+                    $ttlstock = GetTotalStock($row['stockcode']);
+                    echo "<td style='padding:0px 2px; text-align:right; font-size:14px'>{$ttlstock}</td>";
+                } elseif ($row['show_stock_flag'] === 'B') {
+                    echo "<td style='padding:0px 2px; text-align:right;'>" . getStockBand($row['stocklevel']) . "</td>";
+                }
 
+                // Customer price logic
+                if ($_SESSION['selected_branch'] == $_SESSION['default_branch']) {
+                    $custprice = $row['netprice'];
+                } else {
+                    include 'Reconnect.php';
+                    $stockcode = $conn->real_escape_string($row['stockcode']);
+                    $q = $conn->query("SELECT netprice FROM prices WHERE stockcode = '$stockcode' AND customer_id = $cust");
+                    $custprice = ($q && $q->num_rows > 0) ? $q->fetch_assoc()['netprice'] : 0;
+                }
 
-                        echo "<td class='promotext'>";
-                        echo "<img src='images/promotion-icon.gif' />&nbsp;&nbsp;";
-                        echo substr(mysql_result($srchresult,$i,"description"),0,80);
-                        echo "</td>";
-                        echo "<td class='promotext'>";
-                        echo mysql_result($srchresult,$i,"manufacturer");
-                        echo "</td>";
+                $buyprice = $custprice;
+                echo "<td $td_price_col_class>" . number_format($custprice, 2) . "</td>";
 
+                echo "<td style='text-align:center;'>";
+                if ($custprice > 0) {
+                    include 'Reconnect.php';
+                    $q = $conn->query("SELECT * FROM customers WHERE Customer_id = '$cust'");
+                    $enquiry_only = 'N';
+                    if ($q && $q->num_rows > 0) {
+                        $enquiry_only = $q->fetch_assoc()['Enquiry_Only'];
+                    }
 
-
-                        // Additions EU Tyre labelling fields plus Winter Tyre, Extra Load and Run flat icons
-                        echo "<td $td_col_class >";
-                        echo mysql_result($srchresult,$i,"fuel_efficiency");
-                        echo "<td $td_col_class >";
-                        echo mysql_result($srchresult,$i,"wet_braking") ;
-                        echo "</td>";
-                        echo "<td $td_col_class >";
-                        //echo mysql_result($srchresult,$i,"decibels");
-                        //echo "!";
-                        $scrp =  mysql_result($srchresult,$i,"decibels");
-                        //echo $noise;
-                        $noise = trim($scrp,"\0 ");
-                        echo $noise;
-                        if ($noise != "") {
-                                echo "db";
-                                }
-
-                        echo "</td>";
-                                        // Show tyre Options columns, currently BAB and Tyreman demo/dev regions only
-                                        if ($companyid == '2' or $companyid == '3' or $companyid == '4' or $companyid == '5' or $companyid == '11' or $companyid == '16')
-                        {
-                                    echo "<td $td_col_class >";
-						//Show 2020 label if url has been found			
-						if (trim(mysql_result($srchresult,$i,"url")) != "") {
-                            echo "<a href='" . mysql_result($srchresult,$i,"url") . "' target='_blank' ><img src='images/TyreLabelIcon.jpg' width='16' height='16'" ?> onMouseOver="Tip('Tyre Label')" <?php ">";
+                    // assuming $customer_stop is another query result, you'll need to define it
+                    if (isset($customer_stop) && $customer_stop->num_rows > 0) {
+                        $stop_row = $customer_stop->fetch_assoc();
+                        if (!is_null($stop_row) && $stop_row['On_Stop_Flag'] == 'Y') {
+                            echo "<span style='color:red;'>On Stop</span>";
+                        } elseif ($enquiry_only == 'Y') {
+                            echo "n/a";
+                        } else {
+                            echo "<a href='addtobasket.php?productid=$productid&qty=1&price=$buyprice'>Add</a>";
                         }
-									
-/*Show old style label if data found and no 2020 url found*/
- if (trim(mysql_result($srchresult,$i,"url")) == "" and trim(mysql_result($srchresult,$i,"fuel_efficiency")) != "" and
-     trim(mysql_result($srchresult,$i,"wet_braking")) != ""  and
-     trim(mysql_result($srchresult,$i,"vehicle_class")) != ""){
-        echo "<a href='http://www.tyreman.co.uk/eulabel.php?id=" . mysql_result($srchresult,$i,"fuel_efficiency") . "&id2=" . mysql_result($srchresult,$i,"wet_braking") . "&id3=" . mysql_result($srchresult,$i,"noise_rating") . "&id4=" . mysql_result($srchresult,$i,"decibels") . "&id5=" . mysql_result($srchresult,$i,"vehicle_class") . "&id6=" . mysql_result($srchresult,$i,"stockcode") . "' target='_blank' ><img src='images/TyreLabelIcon.jpg' width='16' height='16'" ?> onMouseOver="Tip('Tyre Label')" <?php ">";
-							}
-
-                        }
-
-                                    echo "</td>";
-	
-			
-		  	//show stocklevel
-		  	if (mysql_result($srchresult,$i,"show_stock_flag")=="Y")
-		  	   {
-		  		//get ttl stock for stock code
-		  		$ttlstock = GetTotalStock(mysql_result($srchresult,$i,"stockcode"));
-		  		echo "<td style=\"padding:0px 2px; text-align:right; font-size:14px\">$ttlstock</td>";
-			   }
-				//banded stocklevel
-			   else if (mysql_result($srchresult,$i,"show_stock_flag")=="B")
-			   {
-				echo "<td style=\"padding:0px 2px; text-align:right;\">";
-				echo getStockBand(mysql_result($srchresult,$i,"stocklevel"));
-				echo "</td>";
-			   }
-
-
-
-	  	if($_SESSION['selected_branch'] == $_SESSION['default_branch'])
-		  {
-			$custprice = mysql_result($srchresult,$i,"netprice");
-	 	  } else {
-			//reconnect
-			include 'Reconnect.php';
-			$query = "SELECT netprice FROM prices WHERE stockcode = '" . mysql_result($srchresult,$i,"stockcode") . "' AND customer_id = $cust";
-			$srchresult2 = mysql_query($query) or die(mysql_error());
-			$num2 = mysql_num_rows($srchresult2).'<br />';
-			if($num2 > 0) 
-			  {
-				$custprice = mysql_result($srchresult2,"netprice");
-			  } else {
-				$custprice = 0;
-				 }
-			  }
-	
-			$buyprice = $custprice;
-			echo "<td $td_price_col_class;\">" .
-			number_format($custprice,2) . "</td>";
-	
-		  	
-	   	echo "<td style='text-align:center;'>";
-		if ($custprice > 0)
-		   {
-		   //reconnect
-		   include 'Reconnect.php';
-		   $query="SELECT * FROM customers WHERE Customer_id = '".$cust."'";  	
-		   //run query
-		   $enquiry_result=mysql_query($query) or die(mysql_error());
-		   $num_enq=mysql_numrows($enquiry_result);
-		   $enquiry_only = 'N';
-		   if ($num_enq > 0)
-		      {
-		      $enquiry_only = mysql_result($enquiry_result,0,"Enquiry_Only");
-		      }
-		   if(mysql_result($customer_stop,0,"On_Stop_Flag") == 'Y') 
-  		     {
-		  	echo '<span style="color:red;">On Stop</span>';
-		     } else if($enquiry_only == 'Y')
-			      {
-				echo 'n/a';				 		
-			      } else {
-  					echo '<a href=addtobasket.php?productid=' . 
-						$productid .'&qty=1&price=' . 
-						$buyprice . '>Add</a></td></tr>';
-			      }
-	  	   } else {
-	  			echo 'Call</td></tr>';
-		   }
-
-	  		
-	  	$i++;
-	  		
-		}		// endof while ($i < $num)
-		
-		echo "</tbody></table>";
+                    } else {
+                        echo "<a href='addtobasket.php?productid=$productid&qty=1&price=$buyprice'>Add</a>";
+                    }
+                } else {
+                    echo "Call";
+                }
+                echo "</td></tr>";
+            }
+            echo "</tbody></table>";
 		echo "</td></tr>";
 		echo "</table>";
 	}
