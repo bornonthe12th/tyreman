@@ -1,50 +1,51 @@
 <?php
-	
-//set up query
-//$query="call GetPrefix($companyid);";  
-//run query
-//$result=mysql_query($query);
-//$num=mysql_numrows($result);
-//$prefix = mysql_result($result,0,"prefix");
+include 'Reconnect.php'; // Make sure you have a valid $conn
 
-//reconnect
-include 'Reconnect.php';
-
-//call search proc
-//set up query
-
-$query="call LineDetails($order_id);";	
-//run query
-$result=mysql_query($query);
-$num=mysql_numrows($result);
-//buildfilename
-//$myFile = "orders/" . str_pad($prefix,3,' ',STR_PAD_RIGHT).str_pad(mysql_result($result,0,"order_id"), 8, "0", STR_PAD_LEFT) . ".orl";
-$FilNam = str_pad($prefix,3,' ',STR_PAD_RIGHT).str_pad($order_id,8,"0", STR_PAD_LEFT).".orl";
-$myFile = "orders/" . $FilNam;
-
-$OrderId = mysql_result($result,0,"order_id");
-$stringData = "";
-$fh = fopen($myFile, 'w');
-$num=mysql_numrows($result);
-//loop round results
-if ($num>0) {
-	//lines found
-	$i=0;  	
-	while ($i < $num) {
-		//build string for file
-		$stringData = $stringData .str_pad($prefix,3,' ',STR_PAD_RIGHT);
-		$stringData = $stringData . str_pad(mysql_result($result,$i,"order_id"),8,'0',STR_PAD_LEFT);
-		$stringData = $stringData . "," . str_pad(mysql_result($result,$i,"stockcode"),16,' ',STR_PAD_RIGHT);
-		$stringData = $stringData . "," . str_pad(mysql_result($result,$i,"qty"),6,'0',STR_PAD_LEFT);
-		$stringData = $stringData . "," . str_pad(mysql_result($result,$i,"price"),8,'0',STR_PAD_LEFT) . "\n";
-	  	$i++;
-	}  		
+// Ensure prefix and order_id are already available
+if (!isset($prefix) || !isset($order_id)) {
+	terror('Prefix or Order ID missing in WriteLines', 'B2BWriteLines.php');
 }
 
-//write file
-fwrite($fh, $stringData);
-//close
-fclose($fh);
+// Get Line Details
+$query = "CALL LineDetails($order_id);";
+$result = $conn->query($query);
+if (!$result) {
+	terror('Error fetching line details: ' . $conn->error, 'B2BWriteLines.php');
+}
 
-  		
+// Prepare file
+$FilNam = str_pad($prefix, 3, ' ', STR_PAD_RIGHT) . str_pad($order_id, 8, "0", STR_PAD_LEFT) . ".orl";
+$folderPath = __DIR__ . "/orders";
+$myFile = $folderPath . "/" . $FilNam;
+
+// Create /orders folder if missing
+if (!is_dir($folderPath)) {
+	mkdir($folderPath, 0755, true);
+}
+
+// Open file
+$fh = fopen($myFile, 'w');
+if (!$fh) {
+	terror('Cannot open file for writing: ' . $myFile, 'B2BWriteLines.php');
+}
+
+// Write lines
+while ($row = $result->fetch_assoc()) {
+	$line = '';
+
+	$line .= str_pad($prefix, 3, ' ', STR_PAD_RIGHT);
+	$line .= str_pad($row['order_id'], 8, '0', STR_PAD_LEFT);
+	$line .= "," . str_pad($row['stockcode'] ?? '', 16, ' ', STR_PAD_RIGHT);
+	$line .= "," . str_pad($row['qty'] ?? 0, 6, '0', STR_PAD_LEFT);
+
+	$price = isset($row['price']) ? (int)round($row['price']) : 0; // cast price safely
+	$line .= "," . str_pad($price, 8, '0', STR_PAD_LEFT);
+
+	$line .= "\n";
+
+	fwrite($fh, $line);
+}
+
+// Close file
+fclose($fh);
 ?>

@@ -9,16 +9,31 @@ if (!$cust) {
     die("Customer not logged in.");
 }
 
+// Handle pagination and per-page options
+$perPage = isset($_GET['perpage']) ? max((int)$_GET['perpage'], 1) : 100;
 $page = isset($_GET['page']) ? max((int)$_GET['page'], 1) : 1;
-$perPage = 100;
 $offset = ($page - 1) * $perPage;
 
-// Count total distinct orders
-$countResult = $conn->query("SELECT COUNT(DISTINCT order_id) AS total FROM orders WHERE customer_id = $cust");
+// Handle optional date filter
+$startDate = $_GET['start_date'] ?? '';
+$endDate = $_GET['end_date'] ?? '';
+$dateFilter = '';
+
+if ($startDate && $endDate) {
+    $startDateSafe = $conn->real_escape_string($startDate);
+    $endDateSafe = $conn->real_escape_string($endDate);
+    $dateFilter = " AND o.order_date BETWEEN '$startDateSafe' AND '$endDateSafe'";
+}
+
+// Count total distinct orders (with filter if any)
+$countQuery = "SELECT COUNT(DISTINCT o.order_id) AS total 
+               FROM orders o 
+               WHERE o.customer_id = $cust $dateFilter";
+$countResult = $conn->query($countQuery);
 $total = $countResult ? ($countResult->fetch_assoc()['total'] ?? 0) : 0;
 $totalPages = ceil($total / $perPage);
 
-// Get paginated orders with their lines
+// Fetch orders with lines (with date filter)
 $query = "
     SELECT 
         o.order_id,
@@ -30,7 +45,7 @@ $query = "
     FROM orders o
     JOIN order_lines ol ON o.order_id = ol.order_id
     LEFT JOIN stock s ON s.product_id = ol.product_id
-    WHERE o.customer_id = $cust
+    WHERE o.customer_id = $cust $dateFilter
     ORDER BY o.order_date DESC, o.order_id DESC
     LIMIT $perPage OFFSET $offset
 ";
@@ -50,6 +65,27 @@ $result = $conn->query($query);
     </div>
 
     <div id="mainbody">
+        <!-- Date Filter + PerPage Form -->
+        <form method="GET" action="">
+            <div style="margin-bottom: 20px;">
+                <label>Start Date:</label>
+                <input type="date" name="start_date" value="<?= htmlspecialchars($startDate) ?>">
+                <label>End Date:</label>
+                <input type="date" name="end_date" value="<?= htmlspecialchars($endDate) ?>">
+
+                <label>Results per page:</label>
+                <select name="perpage">
+                    <option value="25" <?= $perPage == 25 ? 'selected' : '' ?>>25</option>
+                    <option value="50" <?= $perPage == 50 ? 'selected' : '' ?>>50</option>
+                    <option value="100" <?= $perPage == 100 ? 'selected' : '' ?>>100</option>
+                    <option value="200" <?= $perPage == 200 ? 'selected' : '' ?>>200</option>
+                </select>
+
+                <button type="submit">Filter</button>
+                <a href="B2BOrderHist.php" style="margin-left: 10px;">Clear</a>
+            </div>
+        </form>
+
         <?php if ($result && $result->num_rows > 0): ?>
             <table id="HistoryTable" border="0" cellspacing="0" cellpadding="4" style="width: 90%;">
                 <tr><td class="maintitle">Order History</td></tr>
@@ -112,26 +148,27 @@ $result = $conn->query($query);
             </table>
 
             <!-- Pagination -->
-            <!-- Clean Pagination -->
             <div class="pagination">
                 <?php
                 $range = 5;
                 $start = max(1, $page - $range);
                 $end = min($totalPages, $page + $range);
 
+                $queryParams = "&start_date=" . urlencode($startDate) . "&end_date=" . urlencode($endDate) . "&perpage=$perPage";
+
                 if ($page > 1) {
-                    echo "<a href='?page=1'>First</a>";
-                    echo "<a href='?page=" . ($page - 1) . "'>&laquo; Prev</a>";
+                    echo "<a href='?page=1$queryParams'>First</a>";
+                    echo "<a href='?page=" . ($page - 1) . "$queryParams'>&laquo; Prev</a>";
                 }
 
                 for ($i = $start; $i <= $end; $i++) {
                     $class = ($i == $page) ? 'active' : '';
-                    echo "<a href='?page=$i' class='$class'>$i</a>";
+                    echo "<a href='?page=$i$queryParams' class='$class'>$i</a>";
                 }
 
                 if ($page < $totalPages) {
-                    echo "<a href='?page=" . ($page + 1) . "'>Next &raquo;</a>";
-                    echo "<a href='?page=$totalPages'>Last</a>";
+                    echo "<a href='?page=" . ($page + 1) . "$queryParams'>Next &raquo;</a>";
+                    echo "<a href='?page=$totalPages$queryParams'>Last</a>";
                 }
                 ?>
             </div>
@@ -168,9 +205,6 @@ $result = $conn->query($query);
     .even {
         background-color: #ffffff;
     }
-</style>
-
-<style>
     .pagination {
         margin: 20px 0;
         text-align: center;
@@ -194,4 +228,3 @@ $result = $conn->query($query);
         background: #FF9900;
     }
 </style>
-
