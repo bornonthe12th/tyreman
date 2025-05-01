@@ -1,12 +1,9 @@
 <?php
 // Include classes
+include "init.php";
 include 'tmanerror.inc';
 include 'B2Bconnect.php';
 
-// Start session if not already started
-if (session_status() !== PHP_SESSION_ACTIVE) {
-	session_start();
-}
 
 // Get session ID
 $session = session_id();

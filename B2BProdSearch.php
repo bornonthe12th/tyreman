@@ -23,7 +23,7 @@ return false;
 <?php
 	/*line added to stop IE and Firefox errors displaying when the user clicks 
 	<Back> button on browser from Basket - 06/06/08 */
-	ini_set('session.cache_limiter','private');
+	//ini_set('session.cache_limiter','private');
 		
 	//include error class
 	require 'tmanerror.inc';

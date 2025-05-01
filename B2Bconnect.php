@@ -1,8 +1,7 @@
 <?php
 // Start session safely
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
+
+include 'init.php';
 
 // Check required session variables
 if (
