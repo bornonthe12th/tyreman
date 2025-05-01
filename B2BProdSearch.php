@@ -176,7 +176,7 @@ switch ($companyid)
 		function clickNS4(e){
 		if (document.layers||document.getElementById&&!document.all){
 		   if (e.which==2||e.which==3){
-		      alert(message);
+		      //alert(message);
 		      return false;
 					}
 				}
