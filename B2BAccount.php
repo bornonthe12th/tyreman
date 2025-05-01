@@ -1,10 +1,9 @@
 <?php
 // Start session safely
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
+
 
 // Include dependencies
+include "init.php";
 include 'tmanerror.inc';
 include 'B2Bconnect.php';
 include 'B2BHeader.inc';
