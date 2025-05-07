@@ -59,6 +59,8 @@ if (($scode) OR ($sdesc) or ($sman) or ($size)) {
     }
 
     if ($num > 0) {
+        mysqli_data_seek($srchresult, 0);
+        $srchresult_row0 = mysqli_fetch_assoc($srchresult);
         $i = 0;
         echo "<table id=BlueTable >";
         echo "<tr><td CLASS=maintitle>Search Results</td></tr>";
