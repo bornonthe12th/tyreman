@@ -69,7 +69,7 @@ include 'B2BFunctions.php';
                                 <tr>
                                     <td>Include VAT</td>
                                     <td>
-                                        <input type="checkbox" id="chkvat" name="incVATFlag" value="Y" <?= ($row['incVATFlag'] ?? '') === 'Y' ? 'checked' : '' ?>>
+                                        <input type="checkbox" id="chkvat" name="incVATFlag" value="Y" <?= ($row['IncVATFlag'] ?? '') === 'Y' ? 'checked' : '' ?>>
                                         <label for="chkvat"><span></span></label>
                                     </td>
                                 </tr>
