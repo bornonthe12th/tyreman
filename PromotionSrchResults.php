@@ -93,7 +93,7 @@ if ($scode == '') {
                 $url = trim($row['url']);
                 if ($url) {
                     echo "<a href='$url' target='_blank'><img src='images/TyreLabelIcon.jpg' width='16' height='16' onmouseover=\"Tip('Tyre Label')\"></a>";
-                } elseif ($row['fuel_efficiency'] !== '' && $row['wet_braking'] !== '' && $row['vehicle_class'] !== '') {
+                } elseif (trim($row['fuel_efficiency']) !== '' && trim($row['wet_braking']) !== '' && trim($row['vehicle_class']) !== '') {
                     $label_url = "http://www.tyreman.co.uk/eulabel.php?id={$row['fuel_efficiency']}&id2={$row['wet_braking']}&id3={$row['noise_rating']}&id4={$row['decibels']}&id5={$row['vehicle_class']}&id6={$row['stockcode']}";
                     echo "<a href='$label_url' target='_blank'><img src='images/TyreLabelIcon.jpg' width='16' height='16' onmouseover=\"Tip('Tyre Label')\"></a>";
                 }

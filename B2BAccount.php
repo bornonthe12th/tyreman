@@ -88,7 +88,7 @@ include 'B2BFunctions.php';
                                     <tr>
                                         <td>Show RRP</td>
                                         <td>
-                                            <input type="checkbox" id="chkrrp" name="Show_rrp" value="Y" <?= ($row['Show_rrp'] ?? '') === 'Y' ? 'checked' : '' ?>>
+                                            <input type="checkbox" id="chkrrp" name="Show_rrp" value="Y" <?= ($row['show_rrp'] ?? '') === 'Y' ? 'checked' : '' ?>>
                                             <label for="chkrrp"><span></span></label>
                                         </td>
                                     </tr>
@@ -96,7 +96,7 @@ include 'B2BFunctions.php';
                                     <tr>
                                         <td>Show RRP4</td>
                                         <td>
-                                            <input type="checkbox" id="chkrrp4" name="Show_rrp4" value="Y" <?= ($row['Show_rrp4'] ?? '') === 'Y' ? 'checked' : '' ?>>
+                                            <input type="checkbox" id="chkrrp4" name="Show_rrp4" value="Y" <?= ($row['show_rrp4'] ?? '') === 'Y' ? 'checked' : '' ?>>
                                             <label for="chkrrp4"><span></span></label>
                                         </td>
                                     </tr>

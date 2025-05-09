@@ -330,7 +330,7 @@ echo "<li></li>";
 echo "<section>";
 echo "<li></li>";
 
-if ($companyid !== '5' and $companyid != '4' and $companyid != '11' )
+if ($companyid !== 5 and $companyid !== 4 and $companyid !== 11 )
 {
 echo "<li>Include</li>";
 }

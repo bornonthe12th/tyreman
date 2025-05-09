@@ -18,12 +18,12 @@ if ($spdisp != 'B' or $spdisp != "S") {
     if ($num > 0) {
         mysqli_data_seek($srchresult, 0);
         $srchresult_row0 = mysqli_fetch_assoc($srchresult);
-        $vatflag = $srchresult_row0["IncVatFlag"];
+        $vatflag = $srchresult_row0["IncVATFlag"];
         $markupval = $srchresult_row0["markupval"];
         $markuppct = $srchresult_row0["markuppc"];
         $DefToSellFlag = $srchresult_row0["DefToSellFlag"];
-        $Show_rrp = $srchresult_row0["Show_rrp"];
-        $Show_rrp4 = $srchresult_row0["Show_rrp4"];
+        $Show_rrp = $srchresult_row0["show_rrp"];
+        $Show_rrp4 = $srchresult_row0["show_rrp4"];
         if (!$srchresult_row0["hide_rrp"]) {
             $Hide_rrp = "n";
         } else {
