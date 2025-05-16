@@ -11,15 +11,16 @@ if ($conn->connect_error) {
 	die("Connection failed: " . $conn->connect_error . PHP_EOL);
 }
 
+
 // Sanitize company_id
-if (!isset($company_id)) {
+if (!isset($company)) {
 	exit("Missing company parameter\n");
 }
 
-$company_id = (int)$company_id;
+$company = (int)$company;
 
 // Lookup company schema
-$query = "SELECT dbschema FROM companies WHERE company_id = $company_id";
+$query = "SELECT dbschema FROM companies WHERE company_id = $company";
 $result = $conn->query($query);
 
 if (!$result || $result->num_rows === 0) {

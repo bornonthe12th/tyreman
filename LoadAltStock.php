@@ -1,89 +1,102 @@
 #!/usr/bin/php
 <?php
 
+if (isset($_GET['company'])) {
+    $company= $_GET['company'];
+} elseif (isset($_SERVER["argv"][1])) {
+    $company = $_SERVER["argv"][1];
+} else {
+    exit("Missing company ID\n");
+}
 
-if(isset($_GET['company']))                     // Is the script is being run through a browser
-  $company_id = $_GET['company'];
-else
-  if(isset($_SERVER["argv"][1]))               // If the script is being run direct from Linux server
-    $company_id = $_SERVER["argv"][1];
-
-
-//include error class
 include 'tmanerror.inc';
 include 'LDconfig.php';
-include 'LDopendb.php';
+include 'LDopendb.php'; // should provide $conn (mysqli object)
 
 $product = "";
+$dirname = "load/" . $company . "/";
 
-//read list of files
-// open this directory
-$dirname =  "load/".$company."/";
+if (!is_dir($dirname)) {
+    die("Directory $dirname does not exist.\n");
+}
+
+$dirArray = [];
 $myDirectory = opendir($dirname);
-// get each entry
-while($entryName = readdir($myDirectory)) {
-	//only include .STK files
-	if (strtoupper(substr($entryName,strlen($entryName)-4))== ".ALT"){
-		$dirArray[] = $entryName;
-	}
+while (($entryName = readdir($myDirectory)) !== false) {
+    if (strtoupper(substr($entryName, -4)) == ".ALT") {
+        $dirArray[] = $entryName;
+    }
 }
-// close directory
 closedir($myDirectory);
-//	count elements in array
-$indexCount	= count($dirArray);
-// sort by date
+
+$indexCount = count($dirArray);
 sort($dirArray);
+$index = $indexCount - 1;
 
-//only process latest file
-$index = $indexCount-1;
-if (substr("$dirArray[$index]", 0, 1) != "."){ // don't list hidden files	
-	$row = 1;
-	$filename = $dirname . $dirArray[$index];
-	$handle = fopen($filename, "r");
-	while ((($data = fgetcsv($handle, 1000, ",")) !== FALSE) and (strlen($data[1])>4)) {
-	    $num = count($data);
-	    
-	    //does it exist already?
-	    $query = "select a.product_id from altstockcodes a,stock s where a.product_id = s.product_id and a.stockcode='".rtrim($data[1])."' and s.stockcode='".$data[2]."' limit 1;";
-	    //echo $query . "</br>";
-	    $result = mysql_query($query) or die(mysql_error());
-	    $num = mysql_num_rows($result);
-	    //echo $num . "</br>";
-	    if ($num == 0) {
-			//doesnt exist so insert
-	    	//find product id
-	    	$query = "select product_id from stock s where s.stockcode='".rtrim($data[2])."' limit 1;";
-	    	//echo $query . "</br>";
-	    	$result = mysql_query($query);
-		    if (mysql_num_rows($result) > 0) {
-			    $product = mysql_result($result,0,"product_id");
-	    		//product found so insert rec
-		    	//set up query
-				$query="insert into altstockcodes (product_id,stockcode) values (";	
-				$query = $query . "'" . $product . "',"; 
-		    	$query = $query . "'" . rtrim($data[1]) . "');"; 
-		    	//echo $query . "</br>";
-		    	//run query to insert row
-		    	$result=mysql_query($query);
-	    	}
-    	} 
-		$row++;
-		//loop to next row
-	}
-	fclose($handle);
-	//commit changes
-	$query = "commit;";
-	$result=mysql_query($query);
-}
-for($index=0; $index < $indexCount; $index++) {
-	if (substr("$dirArray[$index]", 0, 1) != "."){ // don't list hidden files
-		//delete all files
-		$filename = $dirname . $dirArray[$index];
-		//unlink($filename);
-	}
+if ($index < 0 || substr($dirArray[$index], 0, 1) === ".") {
+    exit("No valid ALT file found.\n");
 }
 
+$row = 1;
+$filename = $dirname . $dirArray[$index];
+$handle = fopen($filename, "r");
 
-//disconnect
+if (!$handle) {
+    die("Failed to open file: $filename\n");
+}
+
+while (($data = fgetcsv($handle, 1000, ",")) !== false && strlen($data[1]) > 4) {
+    $altcode = trim($data[1]);
+    $stockcode = trim($data[2]);
+
+    $query = "SELECT a.product_id 
+              FROM altstockcodes a 
+              JOIN stock s ON a.product_id = s.product_id 
+              WHERE a.stockcode = ? AND s.stockcode = ? 
+              LIMIT 1";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("ss", $altcode, $stockcode);
+    $stmt->execute();
+    $stmt->store_result();
+
+    if ($stmt->num_rows === 0) {
+        $stmt->free_result();
+        $stmt->close();
+
+        $query = "SELECT product_id FROM stock WHERE stockcode = ? LIMIT 1";
+        $stmt = $conn->prepare($query);
+        $stmt->bind_param("s", $stockcode);
+        $stmt->execute();
+        $stmt->bind_result($product_id);
+
+        if ($stmt->fetch()) {
+            $stmt->close();
+
+            $query = "INSERT INTO altstockcodes (product_id, stockcode) VALUES (?, ?)";
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param("is", $product_id, $altcode);
+            $stmt->execute();
+            $stmt->close();
+        } else {
+            $stmt->close();
+        }
+    } else {
+        $stmt->free_result();
+        $stmt->close();
+    }
+
+    $row++;
+}
+
+fclose($handle);
+$conn->query("COMMIT");
+
+for ($i = 0; $i < $indexCount; $i++) {
+    if (substr($dirArray[$i], 0, 1) !== ".") {
+        $filepath = $dirname . $dirArray[$i];
+        // unlink($filepath); // Uncomment to delete
+    }
+}
+
 include 'LDclosedb.php';
-?> 
+?>
