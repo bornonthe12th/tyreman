@@ -13,14 +13,14 @@ if ($conn->connect_error) {
 
 
 // Sanitize company_id
-if (!isset($company)) {
+if (!isset($company_id)) {
 	exit("Missing company parameter\n");
 }
 
-$company = (int)$company;
+$company_id = (int)$company_id;
 
 // Lookup company schema
-$query = "SELECT dbschema FROM companies WHERE company_id = $company";
+$query = "SELECT dbschema FROM companies WHERE company_id = $company_id";
 $result = $conn->query($query);
 
 if (!$result || $result->num_rows === 0) {
@@ -28,6 +28,7 @@ if (!$result || $result->num_rows === 0) {
 }
 
 $row = $result->fetch_assoc();
+
 $company = $row['dbschema'];
 $dbname = $company; // You use this later
 

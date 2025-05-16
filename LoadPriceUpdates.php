@@ -3,9 +3,9 @@
 
 // Determine how the script was invoked
 if (isset($_GET['company'])) {
-    $company = $_GET['company'];
+    $company_id = $_GET['company'];
 } elseif (isset($_SERVER['argv'][1])) {
-    $company = $_SERVER['argv'][1];
+    $company_id = $_SERVER['argv'][1];
 } else {
     die("Missing company parameter\n");
 }

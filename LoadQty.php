@@ -3,11 +3,11 @@
 
 if (php_sapi_name() !== 'cli') {
     if (isset($_GET['company'])) {
-        $company = $_GET['company'];
+        $company_id = $_GET['company'];
     }
 } else {
     if (isset($argv[1])) {
-        $company = $argv[1];
+        $company_id = $argv[1];
     }
 }
 

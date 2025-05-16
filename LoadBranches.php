@@ -2,9 +2,9 @@
 <?php
 
 // Determine company folder from CLI or browser input
-$company = $_GET['company'] ?? ($_SERVER["argv"][1] ?? null);
+$company_id = $_GET['company'] ?? ($_SERVER["argv"][1] ?? null);
 
-if (!$company) {
+if (!$company_id) {
     die("Company folder not provided.\n");
 }
 
