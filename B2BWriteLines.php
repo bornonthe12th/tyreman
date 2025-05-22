@@ -38,7 +38,7 @@ while ($row = $result->fetch_assoc()) {
 	$line .= "," . str_pad($row['stockcode'] ?? '', 16, ' ', STR_PAD_RIGHT);
 	$line .= "," . str_pad($row['qty'] ?? 0, 6, '0', STR_PAD_LEFT);
 
-	$price = isset($row['price']) ? (int)round($row['price']) : 0; // cast price safely
+	$price = $row['price'] ?? 0; // cast price safely
 	$line .= "," . str_pad($price, 8, '0', STR_PAD_LEFT);
 
 	$line .= "\n";

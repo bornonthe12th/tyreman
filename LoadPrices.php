@@ -66,35 +66,26 @@ while (($data = fgetcsv($handle, 1000, ",")) !== false && strlen($data[0]) > 2) 
         $query = "SELECT COUNT(*) AS rowcount FROM prices WHERE customer_id = '$cust' AND product_id = '$prod';";
         $result = $conn->query($query);
         $rowcount = ($result) ? $result->fetch_assoc()['rowcount'] : 0;
-
-        $costprice = (strtolower($company) == 'b2bsavoy') ? $conn->real_escape_string($data[3]) : 0;
-        $stocklevel = $conn->real_escape_string($data[4]);
-        $netprice = $conn->real_escape_string($data[6]);
+        $costprice = (strtolower($company) == 'b2bsavoy') ? (float)$data[3] : 0;
+        $stocklevel = (int)$data[4];
+        $netprice = (float)$data[6];
 
         if ($rowcount > 0) {
             $update = "
-                UPDATE prices
-                SET netprice = '$netprice',
-                    stocklevel = '$stocklevel',
-                    " . (strtolower($company) == 'b2bsavoy' ? "costprice = '$costprice'," : "") . "
-                    old = netprice
-                WHERE customer_id = '$cust' AND product_id = '$prod';
-            ";
-            $conn->query($update);
+        UPDATE prices
+        SET netprice = $netprice,
+            stocklevel = $stocklevel,
+            " . (strtolower($company) == 'b2bsavoy' ? "costprice = $costprice," : "") . "
+            old = netprice
+        WHERE customer_id = $cust AND product_id = $prod;
+    ";
+            safeQuery($conn, $update, 'update prices');
         } else {
             $insert = "
-                INSERT INTO prices (customer_id, product_id, costprice, stocklevel, old, netprice, stockcode)
-                VALUES (
-                    '$cust',
-                    '$prod',
-                    '$costprice',
-                    '$stocklevel',
-                    '0',
-                    '$netprice',
-                    '$stockcode'
-                );
-            ";
-            $conn->query($insert);
+        INSERT INTO prices (customer_id, product_id, costprice, stocklevel, old, netprice, stockcode)
+        VALUES ($cust, $prod, $costprice, $stocklevel, 0, $netprice, '$stockcode');
+    ";
+            safeQuery($conn, $insert, 'insert prices');
         }
     }
 

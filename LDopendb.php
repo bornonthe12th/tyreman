@@ -34,4 +34,15 @@ $dbname = $company; // You use this later
 
 // Reconnect to the correct company schema
 $conn->select_db($dbname);
+
+
+function safeQuery(mysqli $conn, string $query, string $context = ''): bool {
+	if (!$conn->query($query)) {
+		$msg = "[ERROR] Query failed" . ($context ? " in $context" : '') .
+			":\n$query\nMySQL Error: " . $conn->error . "\n";
+		file_put_contents('sql_errors.log', $msg, FILE_APPEND);
+		exit($msg); // Exit if critical
+	}
+	return true;
+}
 ?>

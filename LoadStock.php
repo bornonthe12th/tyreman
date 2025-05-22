@@ -76,45 +76,50 @@ while (($data = fgetcsv($handle, 1000, ",")) !== false && strlen($data[0]) > 2) 
     if ($branch !== '') {
         $check = $conn->query("SELECT COUNT(*) AS rowcount FROM stock WHERE Stockcode = '$stockCode' AND branch_id = '$branch'");
         $exists = $check && ($check->fetch_assoc()['rowcount'] ?? 0) > 0;
+        $supplierStock = is_numeric($data[24]) ? (int) $data[24] : 'NULL';
 
         if ($exists) {
             $query = "
-                UPDATE stock SET
-                    description = '{$conn->real_escape_string($data[3])}',
-                    productgroup = '{$conn->real_escape_string($data[4])}',
-                    manufacturer = '{$conn->real_escape_string($data[5])}',
-                    producttype = '{$conn->real_escape_string($data[6])}',
-                    stocklevel = '{$conn->real_escape_string($data[7])}',
-                    size = '{$conn->real_escape_string($data[8])}',
-                    highlight = '{$conn->real_escape_string($data[9])}',
-                    supplier_stock = '{$conn->real_escape_string($data[24])}',
-                    image_name = '{$conn->real_escape_string($data[25])}',
-                    status = 'A'
-                WHERE Stockcode = '$stockCode' AND branch_id = '$branch'
-            ";
-            $conn->query($query);
+        UPDATE stock SET
+            description = '{$conn->real_escape_string($data[3])}',
+            productgroup = '{$conn->real_escape_string($data[4])}',
+            manufacturer = '{$conn->real_escape_string($data[5])}',
+            producttype = '{$conn->real_escape_string($data[6])}',
+            stocklevel = '{$conn->real_escape_string($data[7])}',
+            size = '{$conn->real_escape_string($data[8])}',
+            highlight = '{$conn->real_escape_string($data[9])}',
+            supplier_stock = $supplierStock,
+            image_name = '{$conn->real_escape_string($data[25])}',
+            status = 'A'
+        WHERE Stockcode = '$stockCode' AND branch_id = $branch
+    ";
+            safeQuery($conn, $query, "update stock");
         } else {
-            $query = "
-                INSERT INTO stock (
-                    branch_id, stockcode, description, productgroup, manufacturer,
-                    producttype, stocklevel, status, size, supplier_stock, image_name, highlight
-                ) VALUES (
-                    '$branch',
-                    '$stockCode',
-                    '{$conn->real_escape_string($data[3])}',
-                    '{$conn->real_escape_string($data[4])}',
-                    '{$conn->real_escape_string($data[5])}',
-                    '{$conn->real_escape_string($data[6])}',
-                    '{$conn->real_escape_string($data[7])}',
-                    'A',
-                    '{$conn->real_escape_string($data[8])}',
-                    '{$conn->real_escape_string($data[24])}',
-                    '{$conn->real_escape_string($data[25])}',
-                    '{$conn->real_escape_string($data[9])}'
-                )
-            ";
-            $conn->query($query);
+            $supplierStockRaw = trim($data[24]);
+            $supplierStock = is_numeric($supplierStockRaw) ? (int)$supplierStockRaw : "NULL";
+
+                    $query = "
+            INSERT INTO stock (
+                branch_id, stockcode, description, productgroup, manufacturer,
+                producttype, stocklevel, status, size, supplier_stock, image_name, highlight
+            ) VALUES (
+                '$branch',
+                '$stockCode',
+                '{$conn->real_escape_string($data[3])}',
+                '{$conn->real_escape_string($data[4])}',
+                '{$conn->real_escape_string($data[5])}',
+                '{$conn->real_escape_string($data[6])}',
+                '{$conn->real_escape_string($data[7])}',
+                'A',
+                '{$conn->real_escape_string($data[8])}',
+                $supplierStock,
+                '{$conn->real_escape_string($data[25])}',
+                '{$conn->real_escape_string($data[9])}'
+            )
+        ";
+            safeQuery($conn, $query, "insert stock");
         }
+
     }
 
     echo "\r$row";
@@ -126,7 +131,7 @@ $conn->query("COMMIT");
 // remove all processed files
 foreach ($dirArray as $filename) {
     if ($filename[0] !== '.') {
-        unlink($dirname . $filename);
+        //unlink($dirname . $filename);
     }
 }
 
