@@ -1,206 +1,76 @@
 <?php
-
 $companyid = $_SESSION['companyid'];
-//get session id
+$cust = $_SESSION['customerid'] ?? 0; // Add this if $cust is undefined
+$session = session_id();
 
-//call search proc
-//set up query
 
-$query="call ShowBasket($cust,'$session');";	
-//run query
-$srchresult=mysql_query($query);
-$num=mysql_numrows($srchresult);
+$query = "CALL ShowBasket($cust, '$session')";
+$srchresult = $conn->query($query);
+
+
 $total = 0;
-//loop round results
-if ($num>0) {
-	//products found
-	$i=0;
-  	//write table header
-  	echo "<table id=BasketTable align=center>";
-	echo "<tr><td CLASS=maintitle>Basket Contents</td></tr> ";
-	echo "<tr><td>";
-	echo "<table align=center>";
-	echo "<tr><th width=190 class=titlemedium>Stock Code</th>";
-	echo "<th class=titlemedium>Description</th>";
-	echo "<th width=100 class=titlemedium>Quantity Available</th>";
-	echo "<th width=100 class=titlemedium>Quantity Required</th>";
-	echo "<th width=100 class=titlemedium>Cost Price</th>";
-	echo "<th width=100 class=titlemedium>Line Total</th>";
-	echo "<tr>";	
-	while ($i < $num) {
-		//write one row of table
-			if ($i/2 == round($i/2)) {
-				$tdclass = 'even';
-			} else {
-				$tdclass = 'odd';
-			}
-		//write one row of table
-        	switch ($companyid)
 
-                {
-		default:
-                echo "<tr><td class=$tdclass >";
-                echo mysql_result($srchresult,$i,"stockcode");
-                echo "</td><td class=$tdclass>";
-                echo mysql_result($srchresult,$i,"description");
-                echo "</td><td align=right class=$tdclass>";
-                echo mysql_result($srchresult,$i,"stocklevel"). "&nbsp";
-                echo "</td><td  align=center class=$tdclass><input type=text size=5 maxlength=6 name=qty" . $i . " value=";
-                echo mysql_result($srchresult,$i,"qty");
-                echo "></td><td align=right class=$tdclass>";
-                echo number_format(mysql_result($srchresult,$i,"price"),2);
-                $total = $total + (mysql_result($srchresult,$i,"qty") * mysql_result($srchresult,$i,"price"));
-                echo "&nbsp;</td><td align=right class=$tdclass>";
-                echo number_format(mysql_result($srchresult,$i,"linettl"),2);
-                echo "&nbsp;</td><td align=right class=$tdclass>";
-                $productid = mysql_result($srchresult,$i,"product_id");
-                echo "<input type=hidden name=prodid" . $i . " value=$productid></input></tr>";
+if ($srchresult && $srchresult->num_rows > 0) {
+    echo "<table id='BasketTable' align='center'>";
+    echo "<tr><td class='maintitle'>Basket Contents</td></tr> ";
+    echo "<tr><td>";
+    echo "<table align='center'>";
+    echo "<tr>
+        <th width='190' class='titlemedium'>Stock Code</th>
+        <th class='titlemedium'>Description</th>
+        <th width='100' class='titlemedium'>Quantity Available</th>
+        <th width='100' class='titlemedium'>Quantity Required</th>
+        <th width='100' class='titlemedium'>Cost Price</th>
+        <th width='100' class='titlemedium'>Line Total</th>
+    </tr>";
 
-                $i++;
-		break;
+    $i = 0;
+    while ($row = $srchresult->fetch_assoc()) {
+        $tdclass = ($i % 2 == 0) ? 'even' : 'odd';
 
-		case 1:
-		echo "<tr><td class=$tdclass >";
-  		echo mysql_result($srchresult,$i,"stockcode");
-  		echo "</td><td class=$tdclass>";
-  		echo mysql_result($srchresult,$i,"description");
-  		echo "</td><td align=right class=$tdclass>";
-		$brstk=mysql_result($srchresult,$i,"stocklevel");
-  		echo "$brstk&nbsp</td>";
+        $stockcode = $row['stockcode'];
+        $description = $row['description'];
+        $stocklevel = $row['stocklevel'];
+        $qty = $row['qty'];
+        $price = $row['price'];
+        $linettl = $row['linettl'];
+        $productid = $row['product_id'];
 
-		$ordqty=mysql_result($srchresult,$i,"qty");
-  		echo "<td  align=right  class=$tdclass><select name=qty" . $i . " width='50' STYLE='width: 50px' value="; 
-		 for ($work=-1; $work<=$brstk; $work++) {
-		     if ($work==$ordqty) {
-			echo "<option value=\"$work\" SELECTED>$work</option>";
-			   		 } else {
-			echo "<option value=\"$work\">$work</option>"; 
-						} 
-							} 
-  		echo "></select></td>"; 
+        echo "<tr><td class='$tdclass'>$stockcode</td><td class='$tdclass'>$description</td><td align='right' class='$tdclass'>$stocklevel&nbsp;</td>";
 
-  		echo "<td align=right class=$tdclass>";
-  		echo number_format(mysql_result($srchresult,$i,"price"),2);
-  		$total = $total + (mysql_result($srchresult,$i,"qty") * mysql_result($srchresult,$i,"price"));
-  		echo "&nbsp;</td><td align=right class=$tdclass>";
-  		echo number_format(mysql_result($srchresult,$i,"linettl"),2);
-  		echo "&nbsp;</td><td align=right class=$tdclass>";
-		$productid = mysql_result($srchresult,$i,"product_id");
-		echo "<input type=hidden name=prodid" . $i . " value=$productid></input></tr>";
-		
-	  	$i++;
-		break;
-
-                case 3:
-                echo "<tr><td class=$tdclass >";
-                echo mysql_result($srchresult,$i,"stockcode");
-                echo "</td><td class=$tdclass>";
-                echo mysql_result($srchresult,$i,"description");
-                echo "</td><td align=right class=$tdclass>";
-                $brstk=mysql_result($srchresult,$i,"stocklevel");
-                echo "$brstk&nbsp</td>";
-
-                $ordqty=mysql_result($srchresult,$i,"qty");
-                echo "<td  align=right  class=$tdclass><select name=qty" . $i . " width='50' STYLE='width: 50px' value=";
-                 for ($work=-1; $work<=$brstk; $work++) {
-                     if ($work==$ordqty) {
-                        echo "<option value=\"$work\" SELECTED>$work</option>";
-                                         } else {
-                        echo "<option value=\"$work\">$work</option>";
-                                                }
-                                                        }
-                echo "></select></td>";
-
-                echo "<td align=right class=$tdclass>";
-                echo number_format(mysql_result($srchresult,$i,"price"),2);
-                $total = $total + (mysql_result($srchresult,$i,"qty") * mysql_result($srchresult,$i,"price"));
-                echo "&nbsp;</td><td align=right class=$tdclass>";
-                echo number_format(mysql_result($srchresult,$i,"linettl"),2);
-                echo "&nbsp;</td><td align=right class=$tdclass>";
-                $productid = mysql_result($srchresult,$i,"product_id");
-                echo "<input type=hidden name=prodid" . $i . " value=$productid></input></tr>";
-
-                $i++;
+        switch ($companyid) {
+            case 1:
+            case 3:
+            case 15:
+            case 16:
+                echo "<td align='right' class='$tdclass'><select name='qty$i' style='width: 50px'>";
+                for ($work = -1; $work <= $stocklevel; $work++) {
+                    $selected = ($work == $qty) ? "SELECTED" : "";
+                    echo "<option value=\"$work\" $selected>$work</option>";
+                }
+                echo "</select></td>";
                 break;
 
-                case 15:
-                echo "<tr><td class=$tdclass >";
-                echo mysql_result($srchresult,$i,"stockcode");
-                echo "</td><td class=$tdclass>";
-                echo mysql_result($srchresult,$i,"description");
-                echo "</td><td align=right class=$tdclass>";
-                $brstk=mysql_result($srchresult,$i,"stocklevel");
-                echo "$brstk&nbsp</td>";
+            default:
+                echo "<td align='center' class='$tdclass'><input type='text' size='5' maxlength='6' name='qty$i' value='$qty'></td>";
+        }
 
-                $ordqty=mysql_result($srchresult,$i,"qty");
-                echo "<td  align=right  class=$tdclass><select name=qty" . $i . " width='50' STYLE='width: 50px' value=";
-                 for ($work=-1; $work<=$brstk; $work++) {
-                     if ($work==$ordqty) {
-                        echo "<option value=\"$work\" SELECTED>$work</option>";
-                                         } else {
-                        echo "<option value=\"$work\">$work</option>";
-                                                }
-                                                        }
-                echo "></select></td>";
+        echo "<td align='right' class='$tdclass'>" . number_format($price, 2) . "&nbsp;</td>";
+        echo "<td align='right' class='$tdclass'>" . number_format($linettl, 2) . "&nbsp;</td>";
+        echo "<td align='right' class='$tdclass'><input type='hidden' name='prodid$i' value='$productid'></td></tr>";
 
-                echo "<td align=right class=$tdclass>";
-                echo number_format(mysql_result($srchresult,$i,"price"),2);
-                $total = $total + (mysql_result($srchresult,$i,"qty") * mysql_result($srchresult,$i,"price"));
-                echo "&nbsp;</td><td align=right class=$tdclass>";
-                echo number_format(mysql_result($srchresult,$i,"linettl"),2);
-                echo "&nbsp;</td><td align=right class=$tdclass>";
-                $productid = mysql_result($srchresult,$i,"product_id");
-                echo "<input type=hidden name=prodid" . $i . " value=$productid></input></tr>";
+        $total += $qty * $price;
+        $i++;
+    }
 
-                $i++;
-                break;
-
-                case 16:
-                echo "<tr><td class=$tdclass >";
-                echo mysql_result($srchresult,$i,"stockcode");
-                echo "</td><td class=$tdclass>";
-                echo mysql_result($srchresult,$i,"description");
-                echo "</td><td align=right class=$tdclass>";
-                $brstk=mysql_result($srchresult,$i,"stocklevel");
-                echo "$brstk&nbsp</td>";
-
-                $ordqty=mysql_result($srchresult,$i,"qty");
-                echo "<td  align=right  class=$tdclass><select name=qty" . $i . " width='50' STYLE='width: 50px' value=";
-                 for ($work=-1; $work<=$brstk; $work++) {
-                     if ($work==$ordqty) {
-                        echo "<option value=\"$work\" SELECTED>$work</option>";
-                                         } else {
-                        echo "<option value=\"$work\">$work</option>";
-                                                }
-                                                        }
-                echo "></select></td>";
-
-                echo "<td align=right class=$tdclass>";
-                echo number_format(mysql_result($srchresult,$i,"price"),2);
-                $total = $total + (mysql_result($srchresult,$i,"qty") * mysql_result($srchresult,$i,"price"));
-                echo "&nbsp;</td><td align=right class=$tdclass>";
-                echo number_format(mysql_result($srchresult,$i,"linettl"),2);
-                echo "&nbsp;</td><td align=right class=$tdclass>";
-                $productid = mysql_result($srchresult,$i,"product_id");
-                echo "<input type=hidden name=prodid" . $i . " value=$productid></input></tr>";
-
-                $i++;
-                break;
-
-		}
-	}  
-	echo "<tr><td colspan=4></td><td align=right>Total&nbsp</td><td align=right><b>" . number_format($total,2,'.',',') . "&nbsp;</b></td></tr>";
-	echo "<input type=hidden name=linecount value=$i></input>";		
-	echo "</table>";
-	echo "</td></tr>";
-	echo "</table>";
-	echo "<br><div id=Message_Div align=center><table id=BlueTable><tr><td class=titlemedium>To delete an item from your basket change the quantity to 0</td></tr>";
-	echo "<br><div id=Message_Div align=center><tr><td class=titlemedium>and press the 'Update Basket' button.";
-	echo " </td></tr></table></div>";
+    echo "<tr><td colspan='4'></td><td align='right'>Total&nbsp</td><td align='right'><b>" . number_format($total, 2, '.', ',') . "&nbsp;</b></td></tr>";
+    echo "<input type='hidden' name='linecount' value='$i'>";
+    echo "</table></td></tr></table>";
+    echo "<br><div id='Message_Div' align='center'><table id='BlueTable'><tr><td class='titlemedium'>To delete an item from your basket change the quantity to 0</td></tr>";
+    echo "<tr><td class='titlemedium'>and press the 'Update Basket' button.</td></tr></table></div>";
 } else {
-	echo "<br><div id=Message_Div align=center><table id=BlueTable>";
-	echo "<tr><td class=titlemedium>Your basket is currently empty..</td></tr>";
-	echo "</table></div>";
+    echo "<br><div id='Message_Div' align='center'><table id='BlueTable'>";
+    echo "<tr><td class='titlemedium'>Your basket is currently empty..</td></tr>";
+    echo "</table></div>";
 }
-
-?> 
+?>

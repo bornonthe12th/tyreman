@@ -1,115 +1,105 @@
 #!/usr/bin/php
 <?php
 
+// Determine how the script was invoked
+if (isset($_GET['company'])) {
+    $company_id = $_GET['company'];
+} elseif (isset($_SERVER['argv'][1])) {
+    $company_id = $_SERVER['argv'][1];
+} else {
+    die("Missing company parameter\n");
+}
 
-if(isset($_GET['company']))                     // Is the script is being run through a browser
-  $company_id = $_GET['company'];
-else
-  if(isset($_SERVER["argv"][1]))               // If the script is being run direct from Linux server
-    $company_id = $_SERVER["argv"][1];
-
-
-//include error class
+// Include config and connect
 include 'tmanerror.inc';
 include 'LDconfig.php';
-include 'LDopendb.php';
-$cust="";
-$prod="";
+include 'LDopendb.php'; // This should set up $conn (mysqli)
 
-//read list of files
-// open this directory 
+$cust = '';
+$prod = '';
 
-
-$dirname =  "load/".$company."/";
-$myDirectory = opendir($dirname);
-// get each entry
-while($entryName = readdir($myDirectory)) {
-	//only include .qtp files
-	if (strtoupper(substr($entryName,strlen($entryName)-4))== ".QTP"){
-		$dirArray[] = $entryName;
-	}
+// Lookup dbschema if not already selected (moved into LDopendb.php)
+$dirname = "load/" . $company . "/";
+if (!is_dir($dirname)) {
+    die("Directory $dirname not found.\n");
 }
-// close directory
-closedir($myDirectory);
-//	count elements in array
-$indexCount	= count($dirArray);
-// sort by date
+
+$dirArray = array_filter(scandir($dirname), function ($file) {
+    return strtoupper(substr($file, -4)) === '.QTP';
+});
+
+if (empty($dirArray)) {
+    die("No QTP files found in $dirname\n");
+}
+
 sort($dirArray);
+$filename = $dirname . end($dirArray);
+echo "Processing: $filename\n";
 
-//only process latest file
-$index = $indexCount-1;
-if (substr("$dirArray[$index]", 0, 1) != "."){ // don't list hidden files
-	
-	$row = 1;
-	$filename = $dirname . $dirArray[$index];
-	echo $filename . "\n";
-	$handle = fopen($filename, "r");
-	while ((($data = fgetcsv($handle, 1000, ",")) !== FALSE) and (strlen($data[0])>2)) {
-		
-	    $num = count($data);
-	    //find product_id
-	    $query = "select product_id from stock where Stockcode ='" . rtrim($data[2]) . "' limit 1;";
-	    $result = mysql_query($query);
-	    $num=mysql_num_rows($result);
-	    if ($num > 0) {
-	    	$prod=mysql_result($result,0,"product_id");
-    	} else {
-	    	$prod = "";	
-    	}
-	    //find customer_id
-	    $query = "select customer_id from customers where account_no ='" . rtrim($data[1]) . "' limit 1;";
-	    //echo $query . "</br>";
-	    $result = mysql_query($query);
-	    $num=mysql_numrows($result);
-	    if ($num > 0) {
-	    	$cust=mysql_result($result,0,"customer_id");
-    	} else {
-    	 	$cust="";
-	    }
-	    //echo $cust . " - " . $prod . "</br>";
-	    if (($cust) and ($prod)){
-		    //update price
-		    //do we insert or update?
-		    $query = "select count(*) rowcount from prices where customer_id ='" . $cust . "' and product_id='" .$prod. "';";
-		    $result = mysql_query($query);
-		    
-		    if (mysql_result($result,0,"rowcount") > 0) {  //update
-			    //set up query
-				$updstmnt="update prices p ";	
-			     //first col is stock code
-		        $whrstmnt = "where p.product_id ='" . $prod . "' and p.customer_id='" .$cust. "';";
-		    	$setstmnt = "set p.netprice='" . $data[6] . "',";
-		    	$setstmnt = $setstmnt ."p.stocklevel='" . $data[4] . "',";
-		    	$setstmnt = $setstmnt ."p.old=p.netprice ";
-	
-			    //build query
-			    $query = $updstmnt . $setstmnt . $whrstmnt;
-				//echo $query . "</br>";
-			    //update row
-				$result=mysql_query($query);
-	    	} else { //insert
-			    //set up query
-			}
-		}
-		$row++;
-		//usleep(100000);
-		// ALS 10/08/10
-		//loop to next row
-	}
-	fclose($handle);
-	//commit changes
-	$query = "commit;";
-	$result=mysql_query($query);
-}
-for($index=0; $index < $indexCount; $index++) {
-	if (substr("$dirArray[$index]", 0, 1) != "."){ // don't list hidden files
-		//delete all files
-		$filename = $dirname . $dirArray[$index];
-		unlink($filename);
-	}
+if (($handle = fopen($filename, "r")) === false) {
+    die("Failed to open file: $filename\n");
 }
 
+$row = 0;
+while (($data = fgetcsv($handle, 1000, ",")) !== false && strlen($data[0]) > 2) {
+    $row++;
 
-//disconnect
+    $stockcode = trim($data[2]);
+    $accountNo = trim($data[1]);
+    $netprice  = $data[6] ?? null;
+    $stocklevel = $data[4] ?? null;
+
+    // Get product_id
+    $stmt = $conn->prepare("SELECT product_id FROM stock WHERE stockcode = ? LIMIT 1");
+    $stmt->bind_param("s", $stockcode);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $prod = $res->num_rows > 0 ? $res->fetch_assoc()['product_id'] : null;
+    $stmt->close();
+
+    // Get customer_id
+    $stmt = $conn->prepare("SELECT customer_id FROM customers WHERE account_no = ? LIMIT 1");
+    $stmt->bind_param("s", $accountNo);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $cust = $res->num_rows > 0 ? $res->fetch_assoc()['customer_id'] : null;
+    $stmt->close();
+
+    if ($cust && $prod) {
+        // Check if record exists
+        $stmt = $conn->prepare("SELECT COUNT(*) AS rowcount FROM prices WHERE customer_id = ? AND product_id = ?");
+        $stmt->bind_param("ii", $cust, $prod);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $exists = $res->fetch_assoc()['rowcount'] > 0;
+        $stmt->close();
+
+        if ($exists) {
+            // Update
+            $stmt = $conn->prepare("UPDATE prices SET netprice = ?, stocklevel = ?, old = netprice WHERE product_id = ? AND customer_id = ?");
+            $stmt->bind_param("diii", $netprice, $stocklevel, $prod, $cust);
+            $stmt->execute();
+            $stmt->close();
+        } else {
+            // Insert
+            $stmt = $conn->prepare("INSERT INTO prices (customer_id, product_id, netprice, stocklevel) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("iidi", $cust, $prod, $netprice, $stocklevel);
+            $stmt->execute();
+            $stmt->close();
+        }
+    }
+}
+fclose($handle);
+
+// Commit changes
+$conn->commit();
+
+// Delete all QTP files
+foreach ($dirArray as $file) {
+    if (substr($file, 0, 1) !== '.') {
+        unlink($dirname . $file);
+    }
+}
+
 include 'LDclosedb.php';
-?> 
+?>

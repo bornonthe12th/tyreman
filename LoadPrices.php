@@ -1,130 +1,107 @@
 #!/usr/bin/php
 <?php
 
-
-if(isset($_GET['company']))                     // Is the script is being run through a browser
-  $company_id = $_GET['company'];
-else
-  if(isset($_SERVER["argv"][1]))               // If the script is being run direct from Linux server
+if (isset($_GET['company'])) {
+    $company_id = $_GET['company'];
+} elseif (isset($_SERVER["argv"][1])) {
     $company_id = $_SERVER["argv"][1];
+} else {
+    exit("Missing company parameter.\n");
+}
 
-
-//include error class
 include 'tmanerror.inc';
 include 'LDconfig.php';
-include 'LDopendb.php';
-$cust="";
-$prod="";
+include 'LDopendb.php'; // Assumes $conn (mysqli) is defined here
 
-//read list of files
-// open this directory 
+$cust = "";
+$prod = "";
 
+$dirname = "load/" . $company . "/";
+$dirArray = [];
 
-$dirname =  "load/".$company."/";
-$myDirectory = opendir($dirname);
-// get each entry
-while($entryName = readdir($myDirectory)) {
-	//only include .PRC files
-	if (strtoupper(substr($entryName,strlen($entryName)-4))== ".PRC"){
-		$dirArray[] = $entryName;
-	}
+if (!is_dir($dirname)) {
+    exit("Directory does not exist: $dirname\n");
 }
-// close directory
-closedir($myDirectory);
-//	count elements in array
-$indexCount	= count($dirArray);
-// sort by date
+
+$dh = opendir($dirname);
+while (($entryName = readdir($dh)) !== false) {
+    if (strtoupper(substr($entryName, -4)) == ".PRC") {
+        $dirArray[] = $entryName;
+    }
+}
+closedir($dh);
+
+if (empty($dirArray)) {
+    exit("No .PRC files found in $dirname\n");
+}
+
 sort($dirArray);
+$latestFile = end($dirArray);
+$filename = $dirname . $latestFile;
 
-//only process latest file
-$index = $indexCount-1;
-if (substr("$dirArray[$index]", 0, 1) != "."){ // don't list hidden files
-	
-	$row = 1;
-	$filename = $dirname . $dirArray[$index];
-	echo $filename;
-	// echo $filename;
-	$handle = fopen($filename, "r");
-	while ((($data = fgetcsv($handle, 1000, ",")) !== FALSE) and (strlen($data[0])>2)) {
-		
-	echo $data[1] . $data[1] . $data[3];
-	    $num = count($data);
-	    echo $num;
-	    //find product_id
-	    $query = "select product_id from stock where Stockcode ='" . rtrim($data[2]) . "' limit 1;";
-	    echo $query . "</br>";
-	    $result = mysql_query($query);
-	    $num=mysql_num_rows($result);
-	    if ($num > 0) {
-	    	$prod=mysql_result($result,0,"product_id");
-    	} else {
-	    	$prod = "";	
-    	}
-	    //find customer_id
-	    $query = "select customer_id from customers where account_no ='" . rtrim($data[1]) . "' limit 1;";
-	    //echo $query . "</br>";
-	    $result = mysql_query($query);
-	    $num=mysql_numrows($result);
-	    if ($num > 0) {
-	    	$cust=mysql_result($result,0,"customer_id");
-    	} else {
-    	 	$cust="";
-	    }
-	    //echo $cust . " - " . $prod . "</br>";
-	    if (($cust) and ($prod)){
-		    //update price
-		    //do we insert or update?
-		    $query = "select count(*) rowcount from prices where customer_id ='" . $cust . "' and product_id='" .$prod. "';";
-		    //echo $query . "</br>";
-		    $result = mysql_query($query);
-		    
-		    if (mysql_result($result,0,"rowcount") > 0) {  //update
-			    //set up query
-				$updstmnt="update prices p ";	
-			     //first col is stock code
-		        $whrstmnt = "where p.product_id ='" . $prod . "' and p.customer_id='" .$cust. "';";
-		    	$setstmnt = "set p.netprice='" . $data[6] . "',";
-		    	$setstmnt = $setstmnt ."p.stocklevel='" . $data[4] . "',";
-				if(strtolower($company) == 'b2bsavoy') $setstmnt .= "p.costprice='" . $data[3] . "',";	// Savoy require cost price in database SC 24/3/2008	
-		    	$setstmnt = $setstmnt ."p.old=p.netprice ";
-	
-			    //build query
-			    $query = $updstmnt . $setstmnt . $whrstmnt;
-				//echo $query . "</br>";
-			    //update row
-				$result=mysql_query($query);
-	    	} else { //insert
-			    //set up query
-				$query="insert into prices (customer_id,product_id,costprice,stocklevel,old,netprice,stockcode) values (";	
-			    $query = $query . "'" . $cust . "',"; 
-			    $query = $query . "'" . $prod . "',"; 
-				if(strtolower($company) == 'b2bsavoy')		$query .= "'" . $data[3] . "',"; 		// Savoy require cost price in database SC 24/3/2008	
-			    else    $query = $query . "'0',"; 													// Fill with zero if not Savoy
-			    $query = $query . "'" . $data[4] . "',"; 
-			    $query = $query . "'0',"; 
-			    $query = $query . "'" . $data[6] . "','" . $data[2] ."');"; 
-			    
-			    //run query to insert row
-				//echo $query . "</br>";
-			    $result=mysql_query($query);
-			}
-		}
-		$row++;
-	}
-	fclose($handle);
-	//commit changes
-	$query = "commit;";
-	$result=mysql_query($query);
-}
-for($index=0; $index < $indexCount; $index++) {
-	if (substr("$dirArray[$index]", 0, 1) != "."){ // don't list hidden files
-		//delete all files
-		$filename = $dirname . $dirArray[$index];
-		//unlink($filename);
-	}
+echo "Processing: $filename\n";
+
+$handle = fopen($filename, "r");
+if (!$handle) {
+    exit("Failed to open $filename\n");
 }
 
+$row = 1;
 
-//disconnect
+while (($data = fgetcsv($handle, 1000, ",")) !== false && strlen($data[0]) > 2) {
+    $stockcode = $conn->real_escape_string(trim($data[2]));
+    $account_no = $conn->real_escape_string(trim($data[1]));
+
+    // Get product_id
+    $query = "SELECT product_id FROM stock WHERE stockcode = '$stockcode' LIMIT 1;";
+    $result = $conn->query($query);
+    $prod = ($result && $result->num_rows > 0) ? $result->fetch_assoc()['product_id'] : '';
+
+    // Get customer_id
+    $query = "SELECT customer_id FROM customers WHERE account_no = '$account_no' LIMIT 1;";
+    $result = $conn->query($query);
+    $cust = ($result && $result->num_rows > 0) ? $result->fetch_assoc()['customer_id'] : '';
+
+    if ($cust && $prod) {
+        $query = "SELECT COUNT(*) AS rowcount FROM prices WHERE customer_id = '$cust' AND product_id = '$prod';";
+        $result = $conn->query($query);
+        $rowcount = ($result) ? $result->fetch_assoc()['rowcount'] : 0;
+        $costprice = (strtolower($company) == 'b2bsavoy') ? (float)$data[3] : 0;
+        $stocklevel = (int)$data[4];
+        $netprice = (float)$data[6];
+
+        if ($rowcount > 0) {
+            $update = "
+        UPDATE prices
+        SET netprice = $netprice,
+            stocklevel = $stocklevel,
+            " . (strtolower($company) == 'b2bsavoy' ? "costprice = $costprice," : "") . "
+            old = netprice
+        WHERE customer_id = $cust AND product_id = $prod;
+    ";
+            safeQuery($conn, $update, 'update prices');
+        } else {
+            $insert = "
+        INSERT INTO prices (customer_id, product_id, costprice, stocklevel, old, netprice, stockcode)
+        VALUES ($cust, $prod, $costprice, $stocklevel, 0, $netprice, '$stockcode');
+    ";
+            safeQuery($conn, $insert, 'insert prices');
+        }
+    }
+
+    echo "\r$row processed...";
+    $row++;
+}
+
+fclose($handle);
+$conn->query("COMMIT");
+
+echo "\nDone. Processed $row records.\n";
+
+// Optional cleanup (uncomment if needed)
+// foreach ($dirArray as $f) {
+//     if ($f[0] !== '.') unlink($dirname . $f);
+// }
+
 include 'LDclosedb.php';
-?> 
+?>

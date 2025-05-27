@@ -1,73 +1,84 @@
 <?php
 
 function getStockBand($BStockLvl) {
-	//declare var
-	if($BStockLvl < 5){
-		$lBand = "<5";
-	}elseif (($BStockLvl >= 5)AND($BStockLvl <= 10)) {
-		$lBand = "5-10";
-	}else {
-		$lBand = ">10";
+	if ($BStockLvl < 5) {
+		return "<5";
+	} elseif ($BStockLvl >= 5 && $BStockLvl <= 10) {
+		return "5-10";
+	} else {
+		return ">10";
 	}
-	return $lBand;	
 }
 
 function GetResource($description)
 {
 	include 'Reconnect.php';
-	$query="call GetResource('" . $description . "');";	
-	//run query
-	$result=mysql_query($query);
-	$url = mysql_result($result,0,"url");
-    return $url;
+
+	$description = $conn->real_escape_string($description);
+	$query = "CALL GetResource('$description');";
+
+	$result = $conn->query($query);
+	if (!$result || $result->num_rows === 0) return null;
+
+	$row = $result->fetch_assoc();
+	return $row['url'] ?? null;
 }
 
 function GetCompanySetting($settingdesc)
 {
 	include 'Reconnect.php';
-	$query="call GetCompanySetting('" . $settingdesc . "');";	
-	//run query
-	$result=mysql_query($query);
-	$value = mysql_result($result,0,"setting");
-    return $value;
+
+	$settingdesc = $conn->real_escape_string($settingdesc);
+	$query = "CALL GetCompanySetting('$settingdesc');";
+
+	$result = $conn->query($query);
+	if (!$result || $result->num_rows === 0) return null;
+
+	$row = $result->fetch_assoc();
+	return $row['setting'] ?? null;
 }
 
 function GetDefaultBranch($cust)
 {
-
 	include 'Reconnect.php';
-	$query="call GetDefaultBranch('" . $cust . "');";	
 
-	//run query
-	$result=mysql_query($query);
-	$value = mysql_result($result,0,"default_branch_id") 
-	         OR die("B2BFunctions.php : No value for default branch id<br /><br />$query");
+	$cust = $conn->real_escape_string($cust);
+	$query = "CALL GetDefaultBranch('$cust');";
 
-    return $value;
+	$result = $conn->query($query);
+	if (!$result || $result->num_rows === 0) {
+		die("B2BFunctions.php : No value for default branch id<br /><br />$query");
+	}
 
-    
+	$row = $result->fetch_assoc();
+	return $row['default_branch_id'] ?? null;
 }
 
-function IsBasketEmpty($cust,$session)
+function IsBasketEmpty($cust, $session)
 {
 	include 'Reconnect.php';
-	//reuse showbasket and just check if we get anything back
-	$query="call ShowBasket($cust,'$session');";	
-	//run query
-	$srchresult=mysql_query($query);
-	$num=mysql_numrows($srchresult);
-	if ($num ==0){ return true;		
-	} else  {return false;}
+
+	$cust = (int)$cust;
+	$session = $conn->real_escape_string($session);
+	$query = "CALL ShowBasket($cust, '$session');";
+
+	$result = $conn->query($query);
+	if (!$result) return true;
+
+	return $result->num_rows === 0;
 }
 
 function GetTotalStock($stckcde)
 {
 	include 'Reconnect.php';
-	//call stock total
-	$query="call CompanyWideStock('$stckcde');";	
-	//run query
-	$result=mysql_query($query);
-	$value = mysql_result($result,0,"Company_Stock");
-	return $value;
+
+	$stckcde = $conn->real_escape_string($stckcde);
+	$query = "CALL CompanyWideStock('$stckcde');";
+
+	$result = $conn->query($query);
+	if (!$result || $result->num_rows === 0) return null;
+
+	$row = $result->fetch_assoc();
+	return $row['company_stock'] ?? null;
 }
-?>
+

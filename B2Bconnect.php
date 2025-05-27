@@ -1,19 +1,28 @@
 <?php
-	//connect to the db using session variables	
-	//check variables are set
-	//copy to local vars
-	session_start(); // start up your PHP session!
-	if(!isset($_SESSION['dbusername']))
-	   {
-		header("Location: B2BLogin.php");
-	   }
-	$username = $_SESSION['dbusername'] ;
-	$dbpassword = $_SESSION['dbpassword'] ;
-	$dbschema = $_SESSION['dbschema'] ;
-	$dbhost = "localhost";
+// Start session safely
 
-//connect
-$conn = mysql_connect($dbhost, $username, $dbpassword,'false',65536) 
-        or die(tError('Unable to connect to b2b DB','B2BConnect.php'));
-mysql_select_db($dbschema);
-?>
+include 'init.php';
+
+// Check required session variables
+if (
+	!isset($_SESSION['dbusername']) ||
+	!isset($_SESSION['dbpassword']) ||
+	!isset($_SESSION['dbschema'])
+) {
+	header("Location: B2BLogin.php");
+	exit;
+}
+
+// Assign session variables
+$username   = $_SESSION['dbusername'];
+$dbpassword = $_SESSION['dbpassword'];
+$dbschema   = $_SESSION['dbschema'];
+$dbhost     = "localhost";
+
+// Connect using mysqli
+$conn = new mysqli($dbhost, $username, $dbpassword, $dbschema);
+
+// Check connection
+if ($conn->connect_error) {
+	die(tError('Unable to connect to B2B DB: ' . $conn->connect_error, 'B2BConnect.php'));
+}

@@ -1,87 +1,67 @@
 <?php
+include "init.php";
+require 'tmanerror.inc';
+require 'b2busersconfig.inc';
+require 'B2BFunctions.php';
 
-	//include error class
-	require 'tmanerror.inc';
+// Sanitize inputs
+$username = $_POST['username'] ?? '';
+$password = $_POST['password'] ?? '';
 
-	//include usersdb settings
-	require 'b2busersconfig.inc';
+// Connect to database using mysqli
+$conn = new mysqli($dbhost, $dbuser, $dbpass, $dbname);
+if ($conn->connect_error) {
+    die('Connection failed: ' . $conn->connect_error);
+}
 
-	//include global functions class
-	require 'B2BFunctions.php';
+// Prepare and call the stored procedure safely
+$stmt = $conn->prepare("CALL B2BLogin(?, ?)");
+if (!$stmt) {
+    die('Prepare failed: ' . $conn->error);
+}
+$stmt->bind_param("ss", $username, $password);
 
-  	//copy parms to local vars
-  	$username = $_POST['username'];
-  	$password = $_POST['password'];
+if (!$stmt->execute()) {
+    die('Execute failed: ' . $stmt->error);
+}
 
-  	//connect to users
-	$conn = mysql_connect($dbhost, $dbuser, $dbpass,'false',65536)
-	        or die('Error connecting to mysql');
-	mysql_select_db($dbname);
+$result = $stmt->get_result();
+$num = $result->num_rows;
 
-  	//set up query
-  	$query="call B2BLogin('$username','$password');";
+if ($num === 1) {
+    // 🛡 Regenerate session ID to avoid using a stale session
+    session_regenerate_id(true);
 
-  	//run query
-  	$result=mysql_query($query);
-	$num=mysql_num_rows($result);
+    $row = $result->fetch_assoc();
 
+    $_SESSION['dbusername']       = $row['dbusername'] ?? null;
+    $_SESSION['dbpassword']       = $row['dbPASSWORD'] ?? null;
+    $_SESSION['dbschema']         = $row['dbschema'] ?? null;
+    $_SESSION['customerid']       = $row['customer_id'] ?? null;
+    $_SESSION['stylesheet']       = $row['stylesheet'] ?? null;
+    $_SESSION['printstylesheet']  = $row['printstylesheet'] ?? null;
+    $_SESSION['description']      = $row['description'] ?? null;
+    $_SESSION['companyid']        = $row['company_id'] ?? null;
+    $_SESSION['uid']              = $username;
 
+    // Get default branch
+    $_SESSION['default_branch'] = GetDefaultBranch($_SESSION['customerid']);
+    $_SESSION['selected_branch'] = $_SESSION['default_branch'];
 
-	if ($num==1)
-        {
-		//user found
-  		$i=0;
+    $conn->close();
 
-  		session_start(); // start up your PHP session!
+    tError("User logged on", "$username - $password login.php");
 
-  		while ($i < $num)
-               {
-			//set session vars
-	  		$_SESSION['dbusername'] = mysql_result($result,$i,"DBuserName");
-	  		$_SESSION['dbpassword'] = mysql_result($result,$i,"DBpassword");
-	  		$_SESSION['dbschema'] = mysql_result($result,$i,"DBschema");
-	  		$_SESSION['customerid'] = mysql_result($result,$i,"customer_id");
-	  		$_SESSION['stylesheet'] = mysql_result($result,$i,"stylesheet");
-	  		$_SESSION['printstylesheet'] = mysql_result($result,$i,"printstylesheet");
-	  		$_SESSION['description'] =  mysql_result($result,$i,"description");
-	  		$_SESSION['companyid'] =  mysql_result($result,$i,"company_id");
-			$_SESSION['uid']=$username; // 120110 AS
+    $URL = "B2BUpdateDate.php";
+    session_write_close();
+    header("Location: $URL");
+    exit;
+} else {
+    tError("User not found", "$username - $password login.php");
+    $conn->close();
 
-  		    $i++;
-
-		}
-
-
-		//disconnect from usersdb
-  		mysql_close($conn);
-
-  		/* connect to db (php GetDefaultBranch function defined in B2BFunctions.inc
-		included within this script) and then get default branch */
-
-  		$_SESSION['default_branch'] = GetDefaultBranch($_SESSION['customerid']);
-                $_SESSION['selected_branch'] = GetDefaultBranch($_SESSION['customerid']);
-                // bodged select_branch to stop promotions page bugging - test box only - ALS 30/10/19
-		// store session data
-
-
-
-  		//go to search
-  		// Change to the URL you want to redirect to
-  		tError("User logged on ",$username." - ".$password." login.php");
-		$URL="B2BUpdateDate.php";
-		session_write_close();
-		header ("Location: $URL");
-
-		} else {
-
-  		//user not found, write to log
-  		tError("User not found ",$username." - ".$password." login.php");
-  		//disconnect from usersdb
-  		mysql_close($conn);
-  		//go back to login
-  		$URL="B2BLogin.php?error=Y";
-  		session_write_close();
-		header ("Location: $URL");
-	}
-
-?>
+    $URL = "B2BLogin.php?error=Y";
+    session_write_close();
+    header("Location: $URL");
+    exit;
+}

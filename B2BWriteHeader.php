@@ -1,59 +1,91 @@
 <?php
-	
-//call search proc
-//set up query
-$query="call GetPrefix($companyid);";  
-//run query
-$result=mysql_query($query);
-$num=mysql_numrows($result);
-$prefix = mysql_result($result,0,"prefix");
-$uid = $_SESSION['uid'];
+include 'Reconnect.php'; // Make sure you have a valid $conn
 
-//reconnect
+// Get prefix
+$query = "CALL GetPrefix($companyid);";
+$result = $conn->query($query);
+if (!$result) {
+    terror('Error fetching prefix: ' . $conn->error, 'B2BWriteHeader.php');
+}
+$row = $result->fetch_assoc();
+$prefix = $row['prefix'] ?? '';
+$uid = $_SESSION['uid'] ?? '';
+
+// Reconnect if needed
 include 'Reconnect.php';
 
-$query="call HeaderDetails($order_id);";  
-//run query
-$result=mysql_query($query);
-$num=mysql_numrows($result);
-//buildfilename
-//$FilNam = str_pad($prefix,3,' ',STR_PAD_RIGHT).str_pad(mysql_result($result,0,"order_id"), 8, "0", STR_PAD_LEFT) . ".orh";
-$FilNam = str_pad($prefix,3,' ',STR_PAD_RIGHT).str_pad($order_id,8,"0", STR_PAD_LEFT).".orh";
-$myFile = "orders/" . $FilNam;
+// Get header details
+$query = "CALL HeaderDetails($order_id);";
+$result = $conn->query($query);
+if (!$result) {
+    terror('Error fetching order header details: ' . $conn->error, 'B2BWriteHeader.php');
+}
+$row = $result->fetch_assoc();
+if (!$row) {
+    terror('No header data found for order.', 'B2BWriteHeader.php');
+}
 
+// Build filename
+$FilNam = str_pad($prefix, 3, ' ', STR_PAD_RIGHT) . str_pad($order_id, 8, "0", STR_PAD_LEFT) . ".orh";
+$myFile = __DIR__ . "/orders/" . $FilNam; // safer path
 
+// Try to open file
 $fh = fopen($myFile, 'w');
-//build string for file
+if (!$fh) {
+    terror('Cannot open file for writing: ' . $myFile, 'B2BWriteHeader.php');
+}
 
-$stringData = str_pad($prefix,3,' ',STR_PAD_RIGHT);
-$stringData = $stringData . "," .  str_pad(mysql_result($result,0,"order_id"),8,'0',STR_PAD_LEFT);
-$stringData = $stringData . "," . str_pad(mysql_result($result,0,"account_no"),8,' ',STR_PAD_RIGHT);
+// Prepare string data safely
+$stringData = str_pad($prefix, 3, ' ', STR_PAD_RIGHT);
+$stringData .= "," . str_pad($row['order_id'], 8, '0', STR_PAD_LEFT);
+$stringData .= "," . str_pad($row['account_no'], 8, ' ', STR_PAD_RIGHT);
 
+// Email (trim, escape commas)
+$email = str_replace(',', ' ', $row['Email'] ?? '');
+$stringData .= "," . str_pad($email, 50, ' ', STR_PAD_RIGHT);
 
-$stringData = $stringData . "," . str_pad(mysql_result($result,0,"Email"),50,' ',STR_PAD_RIGHT);
-$odate = substr(mysql_result($result,0,"order_date"),0,10);
-$odate = substr($odate,0,4) . substr($odate,5,2 ) . substr($odate,8,2 );
-$stringData = $stringData . "," . $odate;
-$order_ref = str_replace(","," ",mysql_result($result,0,"order_ref"));
-$stringData = $stringData . "," .str_pad($order_ref,12,' ',STR_PAD_RIGHT);
+// Order date (convert to yyyymmdd)
+$order_date = $row['order_date'] ?? '';
+$odate = '';
+if (!empty($order_date)) {
+    $odate = date('Ymd', strtotime($order_date));
+}
+$stringData .= "," . $odate;
 
-//$stringData = $stringData . "," . str_pad($_SESSION['selected_branch'],8,' ',STR_PAD_LEFT);
-//code added 11/03/09 to replace above line - replace branch_id with branch_code
-//reconnect
+// Order reference (remove commas)
+$order_ref = str_replace(',', ' ', $row['order_ref'] ?? '');
+$stringData .= "," . str_pad($order_ref, 12, ' ', STR_PAD_RIGHT);
+
+// Reconnect if needed
 include 'Reconnect.php';
-$query = "SELECT * FROM branches WHERE branch_id = ".$_SESSION['selected_branch'];
-$result = mysql_query($query);
-$stringData = $stringData . "," . str_pad(mysql_result($result,0,"branch_code"),8,' ',STR_PAD_LEFT);
-$stringData = $stringData . "," . str_pad($_POST['comments1'],32,' ',STR_PAD_RIGHT);
-$stringData = $stringData . "," . str_pad($_POST['comments2'],32,' ',STR_PAD_RIGHT);
-$stringData = $stringData . "," . str_pad($_POST['comments3'],32,' ',STR_PAD_RIGHT);
-$stringData = $stringData . "," . str_pad($_POST['comments4'],32,' ',STR_PAD_RIGHT);
-$stringData = $stringData . "," . str_pad($uid,15,' ',STR_PAD_RIGHT);
 
+// Get branch code
+$selected_branch = (int)($_SESSION['selected_branch'] ?? 0);
+$query = "SELECT branch_code FROM branches WHERE branch_id = $selected_branch LIMIT 1;";
+$result = $conn->query($query);
+if (!$result) {
+    terror('Error fetching branch code: ' . $conn->error, 'B2BWriteHeader.php');
+}
+$branch_row = $result->fetch_assoc();
+$branch_code = $branch_row['branch_code'] ?? '';
+$stringData .= "," . str_pad($branch_code, 8, ' ', STR_PAD_LEFT);
 
-//write file
+// Comments
+$comments = [
+    $_POST['comments1'] ?? '',
+    $_POST['comments2'] ?? '',
+    $_POST['comments3'] ?? '',
+    $_POST['comments4'] ?? ''
+];
+foreach ($comments as $comment) {
+    $cleanComment = str_replace(',', ' ', $comment); // clean commas
+    $stringData .= "," . str_pad($cleanComment, 32, ' ', STR_PAD_RIGHT);
+}
+
+// User ID
+$stringData .= "," . str_pad($uid, 15, ' ', STR_PAD_RIGHT);
+
+// Write to file
 fwrite($fh, $stringData);
-//close
 fclose($fh);
-
 ?>

@@ -1,84 +1,66 @@
 <?php
-//get default branch
 $def_branch = $_SESSION['default_branch'];
+$cust       = $_SESSION['customerid'];
+$session    = session_id();
+$companyid  = $_SESSION['companyid'];
+$branch     = $_SESSION['selected_branch'] ?? '';
 
-$cust = $_SESSION['customerid']; 
-//get session id
-$session = session_id();
+// Are they allowed to change branch?
+$chg_branch = GetCompanySetting('AllowBranchChange');
 
-//use posted value if set
-if (isset($_SESSION['selected_branch'])) {
-		$branch = $_SESSION['selected_branch'];
-} else {
-		$branch = '';	
-}
-
-//get session id
-$session = session_id();
-$companyid = $_SESSION['companyid'];
-
-//are they allowed to change branch
-$chg_branch = GetCompanySetting('AllowBranchChange'); 
 include 'Reconnect.php';
 
-if ($chg_branch == 'Y')  {
-	$basketEmpty = True;
-	$query="call BranchList();";  	
-	//run query
-	$result=mysql_query($query);
-	$num=mysql_numrows($result);
-	//loop round results
-	if ($num>0) {
-		echo "<li>Branch</li>";
-		echo "<li><select name=branch";
-		if ($companyid == '5') {
-                        echo " onmouseover=\"Tip('Branch cannot be changed')\"";
-                        $basketEmpty = False;
-                }
+if ($chg_branch === 'Y') {
+	$basketEmpty = true;
+	$query = "CALL BranchList();";
+	$result = $conn->query($query);
 
-		if (!IsBasketEmpty($cust,$session)) {
-			echo " onmouseover=\"Tip('You may only change the branch</br>when your basket is empty.')\"";	 
-			$basketEmpty = False;
+	if ($result && $result->num_rows > 0) {
+		echo "<li>Branch</li>";
+		echo "<li><select name='branch'";
+
+		if ($companyid == '5') {
+			echo " onmouseover=\"Tip('Branch cannot be changed')\"";
+			$basketEmpty = false;
 		}
+
+		if (!IsBasketEmpty($cust, $session)) {
+			echo " onmouseover=\"Tip('You may only change the branch</br>when your basket is empty.')\"";
+			$basketEmpty = false;
+		}
+
 		echo ">";
 
-		if ($basketEmpty){
-		    
-			$i=0;
-			while ($i < $num) {
-				echo "<option value=";
-				echo mysql_result($result,$i,"branch_id");
-				if ((($def_branch == mysql_result($result,$i,"branch_id"))AND ($branch=='')) OR ($branch ==mysql_result($result,$i,"branch_id"))){
-					echo " selected ";	
-				}	
-				echo ">";
-				echo mysql_result($result,$i,"description");
-				//echo "</option>";
-				$i++;
+		$branches = [];
+		while ($row = $result->fetch_assoc()) {
+			$branches[] = $row;
+		}
+
+		foreach ($branches as $row) {
+			$selected = '';
+			if ((($def_branch == $row['branch_id'] && $branch == '') || $branch == $row['branch_id'])) {
+				$selected = ' selected';
 			}
-		} else {
-			//echo "<option value=''>";
-			$i=0;
-			while ($i < $num) {
-				if ((($def_branch == mysql_result($result,$i,"branch_id"))AND ($branch=='')) OR ($branch == mysql_result($result,$i,"branch_id"))){
-					echo "<option value=" . mysql_result($result,$i,"branch_id");
-					echo " selected >" . mysql_result($result,$i,"description");	
-				}	
-				$i++;
+
+			if ($basketEmpty) {
+				echo "<option value='{$row['branch_id']}'{$selected}>{$row['description']}</option>";
+			} else {
+				// Only show the selected branch when basket is not empty
+				if ($selected !== '') {
+					echo "<option value='{$row['branch_id']}'{$selected}>{$row['description']}</option>";
+				}
 			}
 		}
-		echo "</select></li>" . "\n";
+
+		echo "</select></li>\n";
 	}
+
 } else {
-	//get branch 
-	$query="call GetBranchName($def_branch);";  	
-	//run query
-	$result=mysql_query($query);
-	$num=mysql_numrows($result);
-	//we got a result
-	if ($num>0) {	
-		echo "<li>".mysql_result($result,$i,"description")."</li>";
+	// Display current branch name only
+	$query = "CALL GetBranchName($def_branch);";
+	$result = $conn->query($query);
+
+	if ($result && $row = $result->fetch_assoc()) {
+		echo "<li>{$row['description']}</li>";
 	}
 }
-
-?>

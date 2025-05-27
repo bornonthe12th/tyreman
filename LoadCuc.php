@@ -1,80 +1,82 @@
 #!/usr/bin/php
 <?php
 
-if(isset($_GET['company']))                     // Is the script is being run through a browser
-  $company_id = $_GET['company'];
-else
-  if(isset($_SERVER["argv"][1]))               // If the script is being run direct from Linux server
+// Detect input source (browser or CLI)
+if (isset($_GET['company'])) {
+    $company_id = $_GET['company'];
+} elseif (isset($_SERVER["argv"][1])) {
     $company_id = $_SERVER["argv"][1];
+} else {
+    die("Company ID not provided.\n");
+}
 
-//include error class
+// Includes
 include 'tmanerror.inc';
 include 'LDconfig.php';
-include 'LDopendb.php';
+include 'LDopendb.php'; // This must use mysqli now
 
-
-//read list of files
-// open this directory
-
-$dirname =  "load/".$company."/";
-//echo $dirname . "\n";
-
-$myDirectory = opendir($dirname);
-// get each entry
-while($entryName = readdir($myDirectory))
-{
-	//only include .CUC files
-	if (strtoupper(substr($entryName,strlen($entryName)-4))== ".CUC"){
-		$dirArray[] = $entryName;
-	}
+// Directory for files
+$dirname = "load/" . $company . "/";
+if (!is_dir($dirname)) {
+    die("Directory not found: $dirname\n");
 }
 
+$dirArray = [];
 
-// close directory
+// Open and read directory
+$myDirectory = opendir($dirname);
+while (($entryName = readdir($myDirectory)) !== false) {
+    if (strtoupper(substr($entryName, -4)) === ".CUC") {
+        $dirArray[] = $entryName;
+    }
+}
 closedir($myDirectory);
 
-//	count elements in array
-$indexCount	= count($dirArray);
-
-// sort by date
-sort($dirArray);
-
-
-//only process latest file
-$index = $indexCount-1;
-
-if (substr("$dirArray[$index]", 0, 1) != ".")
-{ // don't list hidden files
-	
-	$query="delete from customer_class";
-	$result=mysql_query($query);
-
-	$row = 1;
-	$filename = $dirname . $dirArray[$index];
-	echo $filename . "\n";
-	$handle = fopen($filename, "r");
-	while ((($data = fgetcsv($handle, 1000, ",")) !== FALSE) and (strlen($data[2])>4))
-        {
-    	$setstmnt = '';
-	$num = count($data);
-    	//set up query
-	$query="insert into customer_class (Account_No,productgroup,display_flag) values (";	
-      	$query = $query . "'" . $data[2] . "',";
-        $query = $query . "'" . $data[3] . "',";
-        $query = $query . "'" . $data[4] . "');";
-	//insert row
-	$result=mysql_query($query);
-	}
-
-	$row++;
-		//loop to next row
-
-	fclose($handle);
-	//commit changes
-	$query = "commit;";
-	$result=mysql_query($query);
+if (count($dirArray) === 0) {
+    die("No .CUC files found in directory.\n");
 }
 
-//disconnect
+// Sort files by name (can be adjusted to sort by mtime if needed)
+sort($dirArray);
+
+// Process the latest file
+$latestFile = end($dirArray);
+$filename = $dirname . $latestFile;
+echo "Processing: $filename\n";
+
+// Delete existing records
+$conn->query("DELETE FROM customer_class");
+
+// Open and read the CSV
+$row = 1;
+if (($handle = fopen($filename, "r")) !== false) {
+    while (($data = fgetcsv($handle, 1000, ",")) !== false) {
+        if (strlen($data[2]) > 4) {
+            $account_no    = $conn->real_escape_string($data[2]);
+            $productgroup  = $conn->real_escape_string($data[3]);
+            $display_flag  = $conn->real_escape_string($data[4]);
+
+            $query = "
+                INSERT INTO customer_class (Account_No, productgroup, display_flag)
+                VALUES ('$account_no', '$productgroup', '$display_flag')
+            ";
+
+            if (!$conn->query($query)) {
+                echo "Insert failed at row $row: " . $conn->error . "\n";
+            }
+        }
+        $row++;
+    }
+    fclose($handle);
+} else {
+    die("Failed to open file: $filename\n");
+}
+
+// Commit transaction if needed (optional with autocommit)
+$conn->commit();
+
+// Done
+echo "Import completed successfully.\n";
+
+// Disconnect
 include 'LDclosedb.php';
-?> 

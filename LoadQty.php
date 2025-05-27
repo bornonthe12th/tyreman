@@ -1,108 +1,111 @@
 #!/usr/bin/php
 <?php
 
-if(isset($_GET['company']))                     // Is the script is being run through a browser
-  $company_id = $_GET['company'];
-else
-  if(isset($_SERVER["argv"][1]))               // If the script is being run direct from Linux server
-    $company_id = $_SERVER["argv"][1];
+if (php_sapi_name() !== 'cli') {
+    if (isset($_GET['company'])) {
+        $company_id = $_GET['company'];
+    }
+} else {
+    if (isset($argv[1])) {
+        $company_id = $argv[1];
+    }
+}
 
-//include error class
 include 'tmanerror.inc';
 include 'LDconfig.php';
 include 'LDopendb.php';
 
+$dirname = "load/" . $company . "/";
+$dirArray = [];
 
-//read list of files
-// open this directory
-
-$dirname =  "load/".$company."/";
-//echo $dirname . "\n";
+if (!is_dir($dirname)) {
+    die("Directory not found: $dirname\n");
+}
 
 $myDirectory = opendir($dirname);
-// get each entry
-while($entryName = readdir($myDirectory))
-{
-	//only include .QTY files
-	if (strtoupper(substr($entryName,strlen($entryName)-4))== ".QTY"){
-		$dirArray[] = $entryName;
-	}
+while (($entryName = readdir($myDirectory)) !== false) {
+    if (strtoupper(substr($entryName, -4)) === ".QTY") {
+        $dirArray[] = $entryName;
+    }
 }
-
-
-// close directory
 closedir($myDirectory);
 
-//	count elements in array
-$indexCount	= count($dirArray);
+$indexCount = count($dirArray);
+if ($indexCount === 0) {
+    echo "No .QTY files found.\n";
+    include 'LDclosedb.php';
+    exit;
+}
 
-// sort by date
 sort($dirArray);
+$index = $indexCount - 1;
+$filename = $dirname . $dirArray[$index];
 
-
-//only process latest file
-$index = $indexCount-1;
-
-//tutn off autocommit - ALS 101111
-$query = "SET autocommit=0;";
-$result=mysql_query($query);
-
-if (substr("$dirArray[$index]", 0, 1) != ".")
-{ // don't list hidden files
-	
-	$row = 1;
-	$filename = $dirname . $dirArray[$index];
-	echo $filename . "\n";
-	$handle = fopen($filename, "r");
-	while ((($data = fgetcsv($handle, 1000, ",")) !== FALSE) and (strlen($data[2])>4))
-        {
-	    $setstmnt = '';
-		$num = count($data);
-		//get branch
-		$query="select branch_id from branches where branch_code = '".$data[1]."';";
-		//usleep(200000);
-		$result=mysql_query($query) or die( 'Error: ' . mysql_error() );
-		$num=mysql_num_rows($result) or die( 'Error: ' . mysql_error() );
-		// added die statement ALS 10/08/10
-	    if ($num > 0) {
-	    	$branch = mysql_result($result,0,"branch_id");
-    	} else {
-    		$branch = "";
-		}
-		if ($branch !=""){
-		    $query = "select count(*) rowcount from stock where Stockcode ='" . $data[2] . "' and branch_id = '".$branch."';";
-		    $result = mysql_query($query);
-		    if (mysql_result($result,0,"rowcount") > 0) {  //update
-			    //set up query
-				$updstmnt="update stock s ";	
-			     //first col is stock code
-		        $whrstmnt = "where s.Stockcode ='" . $data[2] . "' and branch_id='" .$branch. "';";
-		    	$setstmnt = $setstmnt ."set s.stocklevel='" . $data[7] . "'";
-		    	$setstmnt = $setstmnt ." , s.compstk='" . $data[9] . "'";
-		    	$setstmnt = $setstmnt ." , s.regionstk='" . $data[10] . "'";
-			    //build query
-			    $query = $updstmnt . $setstmnt . $whrstmnt;
-			    //update row
-				$result=mysql_query($query);
-	    	}
-		}
-		$row++;
-		//loop to next row
-	}
-	fclose($handle);
-	//commit changes
-	$query = "commit;";
-	$result=mysql_query($query);
-}
-for($index=0; $index < $indexCount; $index++) {
-	if (substr("$dirArray[$index]", 0, 1) != "."){ // don't list hidden files
-		//delete all files
-		$filename = $dirname . $dirArray[$index];
-		//unlink($filename);
-	}
+if ($dirArray[$index][0] === '.') {
+    echo "Skipping hidden file.\n";
+    include 'LDclosedb.php';
+    exit;
 }
 
+// Turn off autocommit
+$conn->query("SET autocommit=0");
 
-//disconnect
+echo "Processing file: $filename\n";
+
+$handle = fopen($filename, "r");
+$row = 1;
+
+while (($data = fgetcsv($handle, 1000, ",")) !== false && strlen($data[2]) > 4) {
+    $branch_code = $conn->real_escape_string($data[1]);
+    $stockcode = $conn->real_escape_string($data[2]);
+    $stocklevel = (int)$data[7];
+    $compstk = (int)$data[9];
+    $regionstk = (int)$data[10];
+
+    $query = "SELECT branch_id FROM branches WHERE branch_code = '$branch_code'";
+    $result = $conn->query($query);
+    if ($result && $result->num_rows > 0) {
+        $branch = $result->fetch_assoc()['branch_id'];
+    } else {
+        echo "Branch not found for code: $branch_code (row $row)\n";
+        $row++;
+        continue;
+    }
+
+    $query = "SELECT COUNT(*) AS rowcount FROM stock WHERE stockcode = '$stockcode' AND branch_id = '$branch'";
+    $result = $conn->query($query);
+    $rowcount = $result ? (int)$result->fetch_assoc()['rowcount'] : 0;
+
+    if ($rowcount > 0) {
+        $update = "
+            UPDATE stock SET 
+                stocklevel = '$stocklevel', 
+                compstk = '$compstk', 
+                regionstk = '$regionstk' 
+            WHERE stockcode = '$stockcode' AND branch_id = '$branch';
+        ";
+        $conn->query($update);
+    } else {
+        echo "Stock record not found for $stockcode in branch $branch (row $row)\n";
+    }
+
+    $row++;
+}
+
+fclose($handle);
+
+// Commit
+$conn->query("COMMIT");
+
+// Optionally delete all .QTY files
+for ($i = 0; $i < $indexCount; $i++) {
+    if ($dirArray[$i][0] !== '.') {
+        $fileToDelete = $dirname . $dirArray[$i];
+        // Uncomment the line below to enable deletion:
+        // unlink($fileToDelete);
+    }
+}
+
 include 'LDclosedb.php';
-?> 
+
+?>

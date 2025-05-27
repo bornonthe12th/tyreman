@@ -1,103 +1,63 @@
 <?php
-	//include error class
-	include 'tmanerror.inc';
-	//include connect class
-	include 'B2Bconnect.php';
-	//get session id
-	$session = session_id();
-	//get account fields
-	$error = 'N';
-	if (isset($_SESSION['customerid'])) {
-		$cust = $_SESSION['customerid'];
-	} else {
-		terror('Missing parameter cust','UpdateAccount.php');
-		$error = 'Y';
+include 'tmanerror.inc';
+include 'B2Bconnect.php';
+include 'Reconnect.php';
+
+// Start session and get session id
+$session = session_id();
+
+// Initialize error flag
+$error = 'N';
+
+// Validate session
+if (isset($_SESSION['customerid'])) {
+	$cust = (int)$_SESSION['customerid'];
+} else {
+	terror('Missing parameter cust', 'UpdateAccount.php');
+	$error = 'Y';
+}
+
+// Gather and sanitize input from POST
+$email = $_POST['email'] ?? '';
+$markuppc = $_POST['markuppc'] ?? '';
+$markupval = $_POST['markupval'] ?? '';
+$IncVATFlag = $_POST['incVATFlag'] ?? '';
+$DefToSellFlag = $_POST['DefToSellFlag'] ?? '';
+$Show_rrp = $_POST['Show_rrp'] ?? '';
+$Show_rrp4 = $_POST['Show_rrp4'] ?? '';
+
+// Escape user inputs safely
+$emailEsc = $conn->real_escape_string($email);
+$markuppcEsc = $conn->real_escape_string($markuppc);
+$markupvalEsc = $conn->real_escape_string($markupval);
+$IncVATFlagEsc = $conn->real_escape_string($IncVATFlag);
+$DefToSellFlagEsc = $conn->real_escape_string($DefToSellFlag);
+$Show_rrpEsc = $conn->real_escape_string($Show_rrp);
+$Show_rrp4Esc = $conn->real_escape_string($Show_rrp4);
+
+if ($error !== 'Y') {
+	// Build safe query
+	$query = "CALL UpdateAccount($cust, '$emailEsc', '$markuppcEsc', '$markupvalEsc', '$IncVATFlagEsc', '$DefToSellFlagEsc', '$Show_rrpEsc', '$Show_rrp4Esc');";
+
+	// Run query
+	if (!$conn->query($query)) {
+		terror('Database error updating account: ' . $conn->error, 'UpdateAccount.php');
+		exit;
 	}
 
-	//set email
-	if (isset($_GET['email'])) {
-		$email = $_GET['email'];
-	} else {
-		$email = "";	
+	// Close connection
+	$conn->close();
+
+	// Redirect back to account page
+	session_write_close();
+	header("Location: B2BAccount.php");
+
+} else {
+	// Handle session problem
+	if ($conn) {
+		$conn->close();
 	}
-	//set markuppc
-	if (isset($_GET['markuppc'])) {
-		$markuppc = $_GET['markuppc'];
-	} else {
-		$markuppc = "";	
-	}
-	//set markupval
-	if (isset($_GET['markupval'])) {
-		$markupval = $_GET['markupval'];
-	} else {
-		$markupval = "";	
-	}
-	//set IncVATFlag
-	if (isset($_GET['incVATFlag'])) {
-		$IncVATFlag = $_GET['incVATFlag'];
-	} else {
-		$IncVATFlag = "";	
-	}
-	//set DefToSellFlag
-	if (isset($_GET['DefToSellFlag'])) {
-		$DefToSellFlag = $_GET['DefToSellFlag'];
-	} else {
-		$DefToSellFlag = "";	
-	}
-
-
-       //set RRP
-
-	if (isset($_GET['Show_rrp'])) {
-		$Show_rrp = $_GET['Show_rrp'];
-	} else {
-		$Show_rrp = "";	
-	}
-
-
-
-        //Set RRP4
-
-	if (isset($_GET['Show_rrp4'])) {
-		$Show_rrp4 = $_GET['Show_rrp4'];
-	} else {
-		$Show_rrp4 = "";	
-	}
-
-
-
-
-
-
-
-	
-	if ($error !== 'Y'){
-		
-		//call UpdateAccount
-		//set up query
-		$query="call UpdateAccount($cust,'$email','$markuppc','$markupval','$IncVATFlag','$DefToSellFlag','$Show_rrp','$Show_rrp4');";	
-
-		//run query
-		$result=mysql_query($query);
-		
-		//include reconnect class
-		include 'Reconnect.php';
-			
-		//go back to account 
-		$URL="B2BAccount.php";
-		session_write_close();
-		header ("Location: $URL");		
-		
-	} else {
-		//problem with session
-		//disconnect from usersdb
-  		mysql_close($conn);
-  		//go to login
-  		// Change to the URL you want to redirect to
-		$URL="B2BLogin.php?error=S";
-		session_write_close();
-		header ("Location: $URL");	
-	}
-	//include closedb class
-	include 'B2Bclosedb.php';
-?>
+	session_write_close();
+	header("Location: B2BLogin.php?error=S");
+}
+exit;

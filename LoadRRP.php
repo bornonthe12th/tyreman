@@ -1,51 +1,60 @@
 #!/usr/bin/php
 <?php
 
-
-if(isset($_GET['company']))                     // Is the script is being run through a browser
-  $company_id = $_GET['company'];
-else
-  if(isset($_SERVER["argv"][1]))               // If the script is being run direct from Linux server
+if (isset($_GET['company'])) {
+    $company_id = $_GET['company'];
+} elseif (isset($_SERVER["argv"][1])) {
     $company_id = $_SERVER["argv"][1];
+} else {
+    exit("Missing company ID\n");
+}
 
-//include error class
 include 'tmanerror.inc';
 include 'LDconfig.php';
-include 'LDopendb.php';
+include 'LDopendb.php'; // expects $conn to be a mysqli connection
 
-$dirname =  "load/".$company."/";
-$row = 1;
+$dirname = "load/" . $company . "/";
 $filename = $dirname . "rrps.csv";
+
+if (!file_exists($filename)) {
+    die("File not found: $filename\n");
+}
+
+$row = 1;
 $handle = fopen($filename, "r");
 
-	while ((($data = fgetcsv($handle, 1000, ",")) !== FALSE) and (strlen($data[0])>2))
-        {
-	    $num = count($data);
-		$query = "select count(*) rowcount from stock where Stockcode ='" . $data[0] . "'";
-		$result = mysql_query($query);
-		//update stock file
-		if (mysql_result($result,0,"rowcount") > 0) 
-		{ 
-			//set up query
-			$updstmnt="update stock s ";	
-			 //first col is stock code
-			$whrstmnt = "where s.Stockcode ='" . $data[0] . "'";
-			$setstmnt = "set s.rrp='" . $data[1] . "',";
-			$setstmnt = $setstmnt ."s.rrp4='" . $data[2] . "'";
-			//build query
-			$query = $updstmnt . $setstmnt . $whrstmnt;
-			//update row
-			$result=mysql_query($query);
-		 } 
-			$row++;
-			//loop to next row
-	}
-	fclose($handle);
-	//commit changes
-	$query = "commit;";
-	$result=mysql_query($query);
+if (!$handle) {
+    die("Failed to open $filename\n");
+}
 
+while (($data = fgetcsv($handle, 1000, ",")) !== false && strlen($data[0]) > 2) {
+    $stockcode = trim($data[0]);
+    $rrp = floatval($data[1]);
+    $rrp4 = floatval($data[2]);
 
-//disconnect
+    // Check existence
+    $checkStmt = $conn->prepare("SELECT COUNT(*) FROM stock WHERE stockcode = ?");
+    $checkStmt->bind_param("s", $stockcode);
+    $checkStmt->execute();
+    $checkStmt->bind_result($rowcount);
+    $checkStmt->fetch();
+    $checkStmt->close();
+
+    if ($rowcount > 0) {
+        // Update query
+        $updateStmt = $conn->prepare("UPDATE stock SET rrp = ?, rrp4 = ? WHERE stockcode = ?");
+        $updateStmt->bind_param("dds", $rrp, $rrp4, $stockcode);
+        $updateStmt->execute();
+        $updateStmt->close();
+    }
+
+    $row++;
+}
+
+fclose($handle);
+
+// Commit (if needed)
+$conn->query("COMMIT");
+
 include 'LDclosedb.php';
-?> 
+?>

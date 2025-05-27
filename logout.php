@@ -1,38 +1,22 @@
 <?php
-	//empty basket
-	include 'B2BEmptyBasket.php';
-	//unset session vars
-	session_unset();
-	//destroy session
-	session_destroy();
-	//goto login page
-	
+include "init.php";
 
-	
-// Steve Cordingley 12th March 2008	
-// The above does not seem to clear the session variables down properly, possibly because the cookie has not been cleared
-// see www.php.net for session_unset(), session_destroy - read all the page for each function
-// Particularly see http://uk2.php.net/manual/en/function.session-destroy.php with the example shown to destroy the session (used below)
-	
-if(isset($_SESSION['savoy']))		
-{
-	// Unset all of the session variables.
-	$_SESSION = array();
-	
-	// If it's desired to kill the session, also delete the session cookie.
-	// Note: This will destroy the session, and not just the session data!
-	if (isset($_COOKIE[session_name()])) {
-	    setcookie(session_name(), '', time()-42000, '/');
-	}
-	
-	// Finally, destroy the session.
-	session_destroy();	
-	
-}	
-	
-	
-	
-	
-  	$URL="B2BLogin.php";
-	header ("Location: $URL");
-?>
+// Clear all session variables
+$_SESSION = [];
+
+// Unset session cookie
+if (ini_get("session.use_cookies")) {
+    $params = session_get_cookie_params();
+    setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
+}
+
+// Destroy the session on the server
+session_destroy();
+
+// Optional: clear browser-side cache
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+
+// Redirect to login
+header("Location: B2BLogin.php");
+exit;
